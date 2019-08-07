@@ -94,7 +94,7 @@ as_sraster <- function(shape,files_raster){
   y_max = coord_pixel$bbox[4] - geo_info[7]/2
 
   x_line = seq(x_min,x_max,geo_info[6])
-  y_line = seq(y_min,y_max,geo_info[7])
+  y_line = seq(y_max,y_min,-geo_info[7])
   coord_x_matrix = array(rep(x_line, ncols),dim = c(ncols, nrows))
   coord_y_matrix = t(array(rep(y_line, nrows),dim = c(nrows, ncols)))
 
@@ -128,6 +128,7 @@ convert_2d <- function(x){
 
 func_nan <- function(x){all(is.na(x))}
 
+
 kmeans_sraster <-
   function(x,centers,...)
   {
@@ -137,6 +138,8 @@ kmeans_sraster <-
 
     index_nonan = apply(data_2d,1,func_nan)
     data_2d_nonan = data_2d[!index_nonan,]
+    #I need to improve the following
+    data_2d_nonan[is.na(data_2d_nonan)] <- 999999
 
     cluster_data_2d = kmeans(data_2d_nonan,centers = centers)
 
@@ -213,7 +216,7 @@ legend_water = legend[which(legend$Legend == 'water'),]
 #===============================
 #Goal : stratified random selection of traing samples at level of polygon, (queriying only one class)
 
-n_samples = 5
+n_samples = 20
 set.seed(123)   #setting same random selection for testing
 index = sample(1:dim(legend_water)[1], n_samples,replace = FALSE)
 query_water = legend_water[index,]
@@ -231,14 +234,21 @@ join_path = function(x,path_folder){
 }
 
 list_images1 = list.files(images_folder)
-list_images2 = c("S2A_L2A_20171002-113001_T29SND.tif","S2A_L2A_20171221-112810_T29SND.tif","S2A_L2A_20180321-112321_T29SND.tif",
-                 "S2A_L2A_20180619-112602_T29SND.tif", "S2A_L2A_20180729-112845_T29SND.tif","S2A_L2A_20180927-112959_T29SND.tif")
+list_images2 = c("S2A_L2A_20171002-113001_T29SND.tif",
+                 "S2A_L2A_20171121-112837_T29SND.tif",
+                 "S2A_L2A_20171221-112810_T29SND.tif",
+                 "S2A_L2A_20180321-112321_T29SND.tif",
+                 "S2A_L2A_20180619-112602_T29SND.tif",
+                 "S2A_L2A_20180729-112845_T29SND.tif",
+                 "S2A_L2A_20180818-112627_T29SND.tif",
+                 "S2A_L2A_20180927-112959_T29SND.tif",
+                 "S2A_L2A_20181007-112305_T29SND.tif")
 
 paths_images = unlist(lapply(list_images2,join_path,images_folder))
 
 list_shapes =split(query_water,query_water$OBJECTID)
 
-shape = query_water[query_water$OBJECTID == 91982,]
+shape = query_water[query_water$OBJECTID == 92202,]
 
 
 workflow <- function(shape,paths_images){
@@ -254,5 +264,11 @@ workflow <- function(shape,paths_images){
 
 result_list = lapply(list_shapes,workflow,paths_images)
 
-result_df = do.call(result_list)
+result_df = do.call("rbind",result_list)
+plot(st_geometry(result_df))
+
+
+st_write(result_df, "output.csv", layer_options = "GEOMETRY=AS_XY")
+
+
 
