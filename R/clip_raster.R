@@ -67,8 +67,8 @@ read_raster <-function(files_raster, xyoffs, reg, r_shape_array, shape){
 }
 
 
-#example
-crop_raster <- function(shape,files_raster){
+#crating sraster function
+as_sraster <- function(shape,files_raster){
   cat(paste0("\tShape ",shape$OBJECTID),"\n")
   geo_info = rgdal::GDALinfo(files_raster[1],returnStats = FALSE)
   coord_pixel = geotransform(geo_info, shape)
@@ -85,8 +85,116 @@ crop_raster <- function(shape,files_raster){
   r_shape_array = r_shape$field
 
   result <- read_raster(files_raster, xyoffs, reg, r_shape_array,shape)
+
+  #Coordinates
+
+  x_min = coord_pixel$bbox[1] + geo_info[6]/2
+  y_min = coord_pixel$bbox[2] + geo_info[7]/2
+  x_max = coord_pixel$bbox[3] - geo_info[6]/2
+  y_max = coord_pixel$bbox[4] - geo_info[7]/2
+
+  x_line = seq(x_min,x_max,geo_info[6])
+  y_line = seq(y_max,y_min,-geo_info[7])
+  coord_x_matrix = array(rep(x_line, ncols),dim = c(ncols, nrows))
+  coord_y_matrix = t(array(rep(y_line, nrows),dim = c(nrows, ncols)))
+
+  coordinates = data.frame(x=c(coord_x_matrix), y=c(coord_y_matrix))
+  result$coordinates = coordinates
+
+  class(result) <- "sraster"
   return(result)
 }
+
+
+print.sraster <-
+  function(x,...){
+    cat("class:    sraster", "\n")
+    cat("space dimension: nrows: ", dim(x$array)[1], " nccols: ", dim(x$array)[2],"\n")
+    cat("Number of layer: ", dim(x$array)[3],"\n")
+    cat("Number of images: ", length(x$bands),"\n")
+  }
+
+#===============================
+#Clustering
+#===============================
+library(reshape2)
+
+k_clusters = 2
+
+convert_2d <- function(x){
+  y = reshape2::melt(x)
+  return(y[,3])
+}
+
+func_nan <- function(x){all(is.na(x))}
+
+
+kmeans_sraster <-
+  function(x,centers,...)
+  {
+    array_sr = x$array
+
+    data_2d = apply(array_sr,3,convert_2d)
+
+    index_nonan = apply(data_2d,1,func_nan)
+    data_2d_nonan = data_2d[!index_nonan,]
+    #I need to improve the following
+    data_2d_nonan[is.na(data_2d_nonan)] <- 999999
+
+    cluster_data_2d = kmeans(data_2d_nonan,centers = centers)
+
+    vector_cluster = c(array(NA, dim = dim(array_sr)[1:2]))
+
+    vector_cluster[!index_nonan]<-cluster_data_2d$cluster
+
+    matrix_cluster = array(vector_cluster, dim = dim(array_sr)[1:2])
+    return(matrix_cluster)
+  }
+
+
+
+#===============================
+#Clip sraster
+#===============================
+
+
+clip_sraster = function(x,mask,type){
+  if(type == 'Majority rule'){
+    largest_cluster = order(table(mask),decreasing = TRUE)[1]
+    mask[mask != largest_cluster] <- NA
+    mask[mask == largest_cluster] <- 1
+  }
+  else{
+    break
+  }
+
+  func_mask <- function(y, mask) y * mask
+
+  array_clip_list = lapply(asplit(x$array,3),func_mask,mask)
+  array_clip = array(unlist(array_clip_list),dim = dim(x$array))
+  x$array <- array_clip
+  return(x)
+}
+
+#===============================
+#as data frame sf
+#===============================
+
+as.data.frame.sraster <-
+  function(x,...)
+  {
+    array_x = x$array
+    data_2d = apply(array_x,3,convert_2d)
+    index_nonan = apply(data_2d,1,func_nan)
+
+    data_2d_nonan = data_2d[!index_nonan,]
+    coordxy = x$coordinates[!index_nonan,]
+    df_data_2d_nonan = data.frame(coordxy, data_2d_nonan)
+    colnames(df_data_2d_nonan) <- c("x","y",x$bands)
+
+    df_spatial = st_as_sf(df_data_2d_nonan, coords = c("x","y"))
+    return(df_spatial)
+  }
 
 
 #===============================
@@ -108,7 +216,7 @@ legend_water = legend[which(legend$Legend == 'water'),]
 #===============================
 #Goal : stratified random selection of traing samples at level of polygon, (queriying only one class)
 
-n_samples = 5
+n_samples = 20
 set.seed(123)   #setting same random selection for testing
 index = sample(1:dim(legend_water)[1], n_samples,replace = FALSE)
 query_water = legend_water[index,]
@@ -125,18 +233,42 @@ join_path = function(x,path_folder){
   }
 }
 
-files_raster = unlist(lapply(list.files(images_folder),join_path,images_folder))
+list_images1 = list.files(images_folder)
+list_images2 = c("S2A_L2A_20171002-113001_T29SND.tif",
+                 "S2A_L2A_20171121-112837_T29SND.tif",
+                 "S2A_L2A_20171221-112810_T29SND.tif",
+                 "S2A_L2A_20180321-112321_T29SND.tif",
+                 "S2A_L2A_20180619-112602_T29SND.tif",
+                 "S2A_L2A_20180729-112845_T29SND.tif",
+                 "S2A_L2A_20180818-112627_T29SND.tif",
+                 "S2A_L2A_20180927-112959_T29SND.tif",
+                 "S2A_L2A_20181007-112305_T29SND.tif")
+
+paths_images = unlist(lapply(list_images2,join_path,images_folder))
 
 list_shapes =split(query_water,query_water$OBJECTID)
 
-result = lapply(list_shapes,crop_raster,files_raster[c(1:12)])
-
-shape = query_water[query_water$OBJECTID == 91801,]
+shape = query_water[query_water$OBJECTID == 92202,]
 
 
-#===============================
-#Rasterization
-#===============================
+workflow <- function(shape,paths_images){
+          result = as_sraster(shape,paths_images)
+          #plot(raster((result$array)[,,1]))
+          cluster_matrix = kmeans_sraster(result,centers = 2)
+          #plot(raster(cluster_matrix))
+          result_clip = clip_sraster(result, mask = cluster_matrix,type ="Majority rule")
+          #plot(raster((result_clip$array)[,,1]))
+          return(as.data.frame(result_clip))
+          }
+
+
+result_list = lapply(list_shapes,workflow,paths_images)
+
+result_df = do.call("rbind",result_list)
+plot(st_geometry(result_df))
+
+
+st_write(result_df, "output.csv", layer_options = "GEOMETRY=AS_XY")
 
 
 
