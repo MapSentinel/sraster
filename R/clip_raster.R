@@ -54,10 +54,10 @@ read_raster <-function(files_raster, xyoffs, reg, r_shape_array, shape){
     for(i in 1:geo_info[3]){
       band = paste0('IMG_',j,"_B_",i)
       clip_extent = rgdal::getRasterData(datasource, offset = xyoffs, region.dim = reg, band=i)
-      if(i == 2){
+      if(i == 3){
         red_band = clip_extent * r_shape_array
       }
-      else if(i == 3){
+      else if(i == 7){
         near_band = clip_extent * r_shape_array
       }
       list_bands[[band]] = clip_extent * r_shape_array
@@ -113,6 +113,7 @@ as_sraster <- function(shape,files_raster){
 
   coordinates = data.frame(x=c(coord_x_matrix), y=c(coord_y_matrix))
   result$coordinates = coordinates
+  result$n_images = length(files_raster)
 
   class(result) <- "sraster"
   return(result)
@@ -123,7 +124,9 @@ print.sraster <-
   function(x,...){
     cat("class:    sraster", "\n")
     cat("space dimension: nrows: ", dim(x$array)[1], " nccols: ", dim(x$array)[2],"\n")
-    cat("Number of layer: ", dim(x$array)[3],"\n")
+    cat("Number of layers: ", dim(x$array)[3],"\n")
+    cat("Number of images: ", x$n_images,"\n")
+    cat("Coord Origin x: ", x$coordinates[1,1]," and y: ", x$coordinates[1,2]  ,"\n")
   }
 
 #===============================
@@ -156,9 +159,9 @@ kmeans_sraster <-
     a = c(1:5)
     for(l in 2:6){
       km <- kmeans(data_2d_nonan,l)
-      a[l-1] = round(fpc::calinhara(data_2d_nonan,km$cluster),digits=2)
+      a[l-1] = round(fpc::calinhara(data_2d_nonan,clustering = km$cluster, cn = l),digits=2)
     }
-    centers = order(a)[1]
+    centers = order(a,decreasing = TRUE)[1] + 1
     cluster_data_2d = kmeans(data_2d_nonan,centers)
 
     vector_cluster = c(array(NA, dim = dim(array_sr)[1:2]))
@@ -181,10 +184,10 @@ clip_sraster = function(x, mask, type){
     mask[mask != largest_cluster] <- NA
     mask[mask == largest_cluster] <- 1
   }
-  else if(type == 'rule_ndvi'){
+  else if(type == 'rule_ndvi_water'){
     bands_ndvi = grep("NDVI",x$bands)
     cluster_n = as.numeric(names(table(mask)))
-    median_ndvi = c(1:length(cluster_n)) 
+    median_ndvi = c(1:length(cluster_n))
     median_ndvi[]<-0
     for(i in cluster_n){
       list_ndvi = list()
@@ -228,79 +231,9 @@ as.data.frame.sraster <-
   }
 
 
-#===============================
-#Example
-#===============================
 
-library(rgdal)
-library(sf)
-library(stars)
-library(raster)
-#setwd("C://IPSTERS")
-#file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
-file_shape = '/home/willimarti2008/Documents/DGT/COS2015/COS2015_v2_08_02_2019_clip.shp'
-legend = st_read(file_shape)
-legend_water = legend[which(legend$Legend == 'water'),]
-
-#===============================
-#random selection
-#===============================
-#Goal : stratified random selection of traing samples at level of polygon, (queriying only one class)
-
-n_samples = 20
-set.seed(123)   #setting same random selection for testing
-index = sample(1:dim(legend_water)[1], n_samples,replace = FALSE)
-query_water = legend_water[index,]
-#===============================
-#Calling imagery
-#===============================
-
-#images_folder = 'C:\\IPSTERS\\IMAGES'
-images_folder = '/home/willimarti2008/Documents/DGT/images'
-join_path = function(x,path_folder){
-  a = strsplit(x,'[.]')
-  format_file = a[[1]][length(a[[1]])]
-  if(format_file == 'tif'){
-    return(paste0(path_folder,'/',x)) 
-  }
+funct_plot<- function(x){
+  a = apply(x,1,rev)
+  b = apply(a,2,rev)
+  return(raster(b))
 }
-
-list_images1 = list.files(images_folder)
-list_images2 = c("S2A_L2A_20171002-113001_T29SND.tif",
-                 "S2A_L2A_20171121-112837_T29SND.tif",
-                 "S2A_L2A_20171221-112810_T29SND.tif",
-                 "S2A_L2A_20180321-112321_T29SND.tif",
-                 "S2A_L2A_20180619-112602_T29SND.tif",
-                 "S2A_L2A_20180729-112845_T29SND.tif",
-                 "S2A_L2A_20180818-112627_T29SND.tif",
-                 "S2A_L2A_20180927-112959_T29SND.tif",
-                 "S2A_L2A_20181007-112305_T29SND.tif")
-
-
-
-paths_images = unlist(lapply(list_images1,join_path,images_folder))
-
-list_shapes = split(query_water,query_water$OBJECTID)
-
-shape = query_water[1,]
-
-workflow <- function(shape,paths_images){
-          result = as_sraster(shape,paths_images)
-          #plot(raster((result$array)[,,1]))
-          cluster_matrix = kmeans_sraster(result)
-          #plot(raster(cluster_matrix))
-          result_clip = clip_sraster(result, mask = cluster_matrix, type ="Majority rule")
-          #plot(raster((result_clip$array)[,,1]))
-          return(as.data.frame(result_clip))
-          }
-
-result_list = lapply(list_shapes,workflow,paths_images)
-
-result_df = do.call("rbind",result_list)
-plot(st_geometry(result_df))
-
-
-st_write(result_df, "output.csv", layer_options = "GEOMETRY=AS_XY")
-
-
-
