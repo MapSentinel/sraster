@@ -49,13 +49,26 @@ read_raster <-function(files_raster, xyoffs, reg, r_shape_array, shape){
   for(j in 1:length(files_raster)){
     geo_info = rgdal::GDALinfo(files_raster[j],returnStats = FALSE)
     datasource = rgdal::GDAL.open(files_raster[j])
+    #This part needs to be improved
 
     for(i in 1:geo_info[3]){
       band = paste0('IMG_',j,"_B_",i)
       clip_extent = rgdal::getRasterData(datasource, offset = xyoffs, region.dim = reg, band=i)
+      if(i == 2){
+        red_band = clip_extent * r_shape_array
+      }
+      else if(i == 3){
+        near_band = clip_extent * r_shape_array
+      }
       list_bands[[band]] = clip_extent * r_shape_array
     }
+    #NDVI
+    ndvi = (near_band - red_band)/(near_band + red_band)
+    name_ndvi = paste0("NDVI_",j)
+    list_bands[[name_ndvi]] = ndvi
     rgdal::closeDataset(datasource)
+    red_band = 0
+    near_band = 0
     Sys.sleep(0.1)
     setTxtProgressBar(pb,j)
   }
@@ -111,15 +124,12 @@ print.sraster <-
     cat("class:    sraster", "\n")
     cat("space dimension: nrows: ", dim(x$array)[1], " nccols: ", dim(x$array)[2],"\n")
     cat("Number of layer: ", dim(x$array)[3],"\n")
-    cat("Number of images: ", length(x$bands),"\n")
   }
 
 #===============================
 #Clustering
 #===============================
 library(reshape2)
-
-k_clusters = 2
 
 convert_2d <- function(x){
   y = reshape2::melt(x)
@@ -128,9 +138,10 @@ convert_2d <- function(x){
 
 func_nan <- function(x){all(is.na(x))}
 
+library(fpc)
 
 kmeans_sraster <-
-  function(x,centers,...)
+  function(x,...)
   {
     array_sr = x$array
 
@@ -141,7 +152,14 @@ kmeans_sraster <-
     #I need to improve the following
     data_2d_nonan[is.na(data_2d_nonan)] <- 999999
 
-    cluster_data_2d = kmeans(data_2d_nonan,centers = centers)
+    #defining number of clusters
+    a = c(1:5)
+    for(l in 2:6){
+      km <- kmeans(data_2d_nonan,l)
+      a[l-1] = round(fpc::calinhara(data_2d_nonan,km$cluster),digits=2)
+    }
+    centers = order(a)[1]
+    cluster_data_2d = kmeans(data_2d_nonan,centers)
 
     vector_cluster = c(array(NA, dim = dim(array_sr)[1:2]))
 
@@ -157,15 +175,28 @@ kmeans_sraster <-
 #Clip sraster
 #===============================
 
-
-clip_sraster = function(x,mask,type){
+clip_sraster = function(x, mask, type){
   if(type == 'Majority rule'){
     largest_cluster = order(table(mask),decreasing = TRUE)[1]
     mask[mask != largest_cluster] <- NA
     mask[mask == largest_cluster] <- 1
   }
-  else{
-    break
+  else if(type == 'rule_ndvi'){
+    bands_ndvi = grep("NDVI",x$bands)
+    cluster_n = as.numeric(names(table(mask)))
+    median_ndvi = c(1:length(cluster_n)) 
+    median_ndvi[]<-0
+    for(i in cluster_n){
+      list_ndvi = list()
+      for(j in bands_ndvi){
+          bndvi = x$array[,,j]
+          list_ndvi[[j]] = c(bndvi[mask==i])
+      }
+      median_ndvi[i] = median(unlist(list_ndvi),na.rm = TRUE)
+    }
+    lowest_ndvi = order(median_ndvi)[1]
+    mask[mask != lowest_ndvi] <- NA
+    mask[mask == lowest_ndvi] <- 1
   }
 
   func_mask <- function(y, mask) y * mask
@@ -201,13 +232,13 @@ as.data.frame.sraster <-
 #Example
 #===============================
 
-
 library(rgdal)
 library(sf)
 library(stars)
 library(raster)
 #setwd("C://IPSTERS")
-file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
+#file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
+file_shape = '/home/willimarti2008/Documents/DGT/COS2015/COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
 legend_water = legend[which(legend$Legend == 'water'),]
 
@@ -224,12 +255,13 @@ query_water = legend_water[index,]
 #Calling imagery
 #===============================
 
-images_folder = 'C:\\IPSTERS\\IMAGES'
+#images_folder = 'C:\\IPSTERS\\IMAGES'
+images_folder = '/home/willimarti2008/Documents/DGT/images'
 join_path = function(x,path_folder){
   a = strsplit(x,'[.]')
   format_file = a[[1]][length(a[[1]])]
   if(format_file == 'tif'){
-    return(paste0(path_folder,'\\',x))
+    return(paste0(path_folder,'/',x)) 
   }
 }
 
@@ -244,23 +276,23 @@ list_images2 = c("S2A_L2A_20171002-113001_T29SND.tif",
                  "S2A_L2A_20180927-112959_T29SND.tif",
                  "S2A_L2A_20181007-112305_T29SND.tif")
 
-paths_images = unlist(lapply(list_images2,join_path,images_folder))
 
-list_shapes =split(query_water,query_water$OBJECTID)
 
-shape = query_water[query_water$OBJECTID == 92202,]
+paths_images = unlist(lapply(list_images1,join_path,images_folder))
 
+list_shapes = split(query_water,query_water$OBJECTID)
+
+shape = query_water[1,]
 
 workflow <- function(shape,paths_images){
           result = as_sraster(shape,paths_images)
           #plot(raster((result$array)[,,1]))
-          cluster_matrix = kmeans_sraster(result,centers = 2)
+          cluster_matrix = kmeans_sraster(result)
           #plot(raster(cluster_matrix))
-          result_clip = clip_sraster(result, mask = cluster_matrix,type ="Majority rule")
+          result_clip = clip_sraster(result, mask = cluster_matrix, type ="Majority rule")
           #plot(raster((result_clip$array)[,,1]))
           return(as.data.frame(result_clip))
           }
-
 
 result_list = lapply(list_shapes,workflow,paths_images)
 
