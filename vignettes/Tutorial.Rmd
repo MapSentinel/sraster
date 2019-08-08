@@ -1,6 +1,6 @@
 ---
 title: "Tutorial of sraster"
-author: "William Martinez"
+author: "DGT Portugal, William Martinez"
 date: "05/08/2019"
 output: html_document
 ---
@@ -11,58 +11,143 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Introduction
 
-Origanizaing vectoor information 
+The attempt of this tutorial is to document the implmentation of the cluster analysis developed in Pari's paper. 
+
+First at all, we wil import a set of modules that will speed up the performance of this excercise from the the document clip_raster with **R** extension. Moreover, I will call COS map 2015 with shapefile extension that intersect  10 images of 2018 over the year. For this example I will call only shapes associated to water bodies.
 
 ```{r }
 
-library(rgdal)
-#setwd("C://IPSTERS")
-file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
-#legend = st_read(file_shape)
+source('C:\\IPSTERS\\sraster\\R\\clip_raster.R')
 
-legend = rgdal::readOGR(file_shape)
+#===============================
+#Example
+#===============================
+
+library(rgdal)
+library(sf)
+library(stars)
+library(raster)
+
+file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
+legend = st_read(file_shape)
+legend_water = legend[which(legend$Legend == 'water'),]
+
+#===============================
+#Calling imagery
+#===============================
+
+images_folder = 'C:\\IPSTERS\\IMAGES'
+#images_folder = '/home/willimarti2008/Documents/DGT/images'
+join_path = function(x,path_folder){
+  a = strsplit(x,'[.]')
+  format_file = a[[1]][length(a[[1]])]
+  if(format_file == 'tif'){
+    return(paste0(path_folder,'/',x))
+  }
+}
+
+list_images1 = list.files(images_folder)
+list_images2 = c("S2A_L2A_20171002-113001_T29SND.tif",
+                 "S2A_L2A_20171121-112837_T29SND.tif",
+                 "S2A_L2A_20171221-112810_T29SND.tif",
+                 "S2A_L2A_20180321-112321_T29SND.tif",
+                 "S2A_L2A_20180619-112602_T29SND.tif",
+                 "S2A_L2A_20180729-112845_T29SND.tif",
+                 "S2A_L2A_20180818-112627_T29SND.tif",
+                 "S2A_L2A_20180927-112959_T29SND.tif",
+                 "S2A_L2A_20181007-112305_T29SND.tif")
+
+paths_images = unlist(lapply(list_images2,join_path,images_folder))
+```
+
+
+## Example Polygon Obj 92202
+
+### sraster object
+
+For the 92202 polygon we want to extract the spectral and temporal information associated to Snetinel 2 2018. The function as_raster also provides NDVI index. Since we have 9 images with 10 bands of sentinel 2, plus NDVI per image, in total we have 99 layers for our cluster analysis.
+
+```{r }
+shape = legend_water[legend_water$OBJECTID == 92202,]
+result = as_sraster(shape,paths_images)
+result
+plot(raster((result$array)[,,1]))
+```
+
+### K means
+
+Internally the number of cluster is defined by the Calinski-Harabasz index. As result, we have 3 clusters
+
+```{r }
+cluster_matrix = kmeans_sraster(result)
+plot(raster(cluster_matrix))
+```
+
+### Extracting spectral temporal information with Majority rule
+
+```{r }
+result_clip = clip_sraster(result, mask = cluster_matrix, type ="Majority rule")
+plot(raster((result_clip$array)[,,1]))
+```
+
+### Extracting spectral temporal information with ndvi rule
+
+```{r }
+result_clip = clip_sraster(result, mask = cluster_matrix, type ="rule_ndvi_water")
+plot(raster((result_clip$array)[,,1]))
+```
+
+## Working with more polygons
+
+Well, this workflow also attempts to construct a database with the spectral-temporal information that must be part of the trainig and validation modelling. So here we want to evaluate haw fast we can retrieve pseudotraining and put it a file that later on we will use for modelling. 
+
+This example covers only water. I want only call 20 polygons for this example
+
+```{r }
 
 #===============================
 #random selection
 #===============================
-#Goal : stratified random selection of traing samples at level of polygon
+#Goal : stratified random selection of traing samples at level of polygon, (queriying only one class)
 
+n_samples = 20
 set.seed(123)   #setting same random selection for testing
-list_df_classes  = split(legend,legend$Legend)
-
-strat_random_selection = function(x, n_samples){
-  n = nrow(x)
-  index = sample(1:n,n_samples,replace = FALSE)
-  return(x[index,])
-}
-
-#list_df_query = lapply(list_df_classes,strat_random_selection, n_samples = 5)
-
-#df_query = do.call("rbind",list_df_query)
-
-#rm(list_df_query,list_df_classes,legend)
-
-
-#file_raster = 'IM_20170405_843.tif'
-
-#shapes = split(df_query,df_query$OBJECTID)
-
-#list_crops = lapply(shapes,crop_raster,file_raster)
-
-
-#a = values(raster('IM_20170405_843.tif'))
-
-
-#===============================
-#Rasterization
-#===============================
-
-#rasterize
-#r <- raster(ncols = reg[1], nrows = reg[2])
-#extent(r) <- extent(shape)
-#r <- rasterize(shape, r)
-
-
+index = sample(1:dim(legend_water)[1], n_samples,replace = FALSE)
+query_water = legend_water[index,]
 
 ```
+
+
+The following script contains the workflow that generalize the process done with the polygon of water done above.
+
+```{r eval= FALSE }
+list_shapes = split(query_water,query_water$OBJECTID)
+
+
+workflow <- function(shape,paths_images){
+          result = as_sraster(shape,paths_images)
+          #plot(raster((result$array)[,,1]))
+          cluster_matrix = kmeans_sraster(result)
+          #plot(raster(cluster_matrix))
+          #result_clip = clip_sraster(result, mask = cluster_matrix, type ="Majority rule")
+          result_clip = clip_sraster(result, mask = cluster_matrix, type ="rule_ndvi_water")
+          #plot(raster((result_clip$array)[,,1]))
+          return(as.data.frame(result_clip))
+          }
+
+result_list = lapply(list_shapes,workflow,paths_images)
+
+result_df = do.call("rbind",result_list)
+plot(st_geometry(result_df))
+```
+
+
+To save the results
+
+```{r eval= FALSE}
+st_write(result_df, "output1.csv", layer_options = "GEOMETRY=AS_XY")
+```
+
+
+
 
