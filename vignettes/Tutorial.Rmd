@@ -40,9 +40,9 @@ library(raster)
 
 file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
-legend_water = legend[which(legend$Legend == 'water'),]
+legend_class = legend[which(legend$Legend == 'broadleaf'),]
 #buffer
-legend_water_buffer = st_buffer(legend_water,-20)
+legend_class_buffer = st_buffer(legend_class,-20)
 table(legend$Legend)
 
 #===============================
@@ -59,7 +59,7 @@ join_path = function(x,path_folder){
   }
 }
 
-list_images2 = c("S2A_L2A_20171002-113001_T29SND.tif",
+list_images = c("S2A_L2A_20171002-113001_T29SND.tif",
                  "S2A_L2A_20171221-112810_T29SND.tif",
                  "S2A_L2A_20180321-112321_T29SND.tif",
                  "S2A_L2A_20180619-112602_T29SND.tif",
@@ -67,17 +67,17 @@ list_images2 = c("S2A_L2A_20171002-113001_T29SND.tif",
                  "S2A_L2A_20180818-112627_T29SND.tif",
                  "S2A_L2A_20180927-112959_T29SND.tif")
 
-paths_images = unlist(lapply(list_images2,join_path,images_folder))
+paths_images = unlist(lapply(list_images,join_path,images_folder))
 ```
 
 
-# Example Polygon Obj 92266
+# Example Polygon
 
 We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
 
 ```{r }
-shape = legend_water[legend_water$OBJECTID == 92266 ,]
-shape_buffer = legend_water_buffer[legend_water_buffer$OBJECTID == 92266 ,]
+shape = legend_class[1,]
+shape_buffer = legend_class_buffer[1,]
 
 plot(st_geometry(shape),border='red')
 plot(st_geometry(shape_buffer), col = 'blue', add=T)
@@ -113,7 +113,7 @@ result_clip = clip_sraster(result, mask = cluster_matrix, type ="Majority rule")
 plot(funct_plot((result_clip$array)[,,1]))
 ```
 
-## Extracting spectral temporal information with ndvi rule
+## Extracting spectral temporal information with ndvi rule for water class
 
 ```{r }
 result_clip = clip_sraster(result, mask = cluster_matrix, type ="rule_ndvi_water")
@@ -136,22 +136,22 @@ This example covers only water. I want only call 20 polygons for this example
 
 n_samples = 30
 set.seed(123)   #setting same random selection for testing
-index = sample(1:dim(legend_water)[1], n_samples,replace = FALSE)
-query_water = legend_water[index,]
-query_water_buffer = legend_water_buffer[index,]
+index = sample(1:dim(legend_class)[1], n_samples,replace = FALSE)
+query_class = legend_class[index,]
+query_class_buffer = legend_class_buffer[index,]
 ```
 
 
 The following script contains the workflow that generalize the process done with the polygon of water done above. We require 3.5 seconds per polygon, so working with 20 this process can take one minute and 10 seconds more.
 
 ```{r eval= FALSE }
-list_shapes = split(query_water,query_water$OBJECTID)
-list_shapes_buffer = split(query_water_buffer,query_water_buffer$OBJECTID)
+list_shapes = split(query_class,query_class$OBJECTID)
+list_shapes_buffer = split(query_class_buffer,query_class_buffer$OBJECTID)
 
 workflow <- function(shape,paths_images){
           result = as_sraster(shape,paths_images)
           cluster_matrix = kmeans_sraster(result)
-          result_clip = clip_sraster(result, mask = cluster_matrix, type ="rule_ndvi_water")  # Majority rule
+          result_clip = clip_sraster(result, mask = cluster_matrix, type ="Majority rule")  # 
           return(as.data.frame(result_clip))
           }
 
@@ -204,8 +204,8 @@ To save the results
 
 ```{r eval= FALSE}
 
-st_crs(result_df)<-st_crs(legend)
-st_write(result_df, "output_water_clean_2.csv", layer_options = "GEOMETRY=AS_XY")
+st_crs(result_df2)<-st_crs(legend)
+st_write(result_df2, "output_baresoil_buffer_clean_1.csv", layer_options = "GEOMETRY=AS_XY")
 ```
 
 
