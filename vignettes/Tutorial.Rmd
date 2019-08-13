@@ -41,6 +41,9 @@ library(raster)
 file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
 legend_water = legend[which(legend$Legend == 'water'),]
+#buffer
+legend_water_buffer = st_buffer(legend_water,-20)
+table(legend$Legend)
 
 #===============================
 #Calling imagery
@@ -56,16 +59,13 @@ join_path = function(x,path_folder){
   }
 }
 
-list_images1 = list.files(images_folder)
 list_images2 = c("S2A_L2A_20171002-113001_T29SND.tif",
-                 "S2A_L2A_20171121-112837_T29SND.tif",
                  "S2A_L2A_20171221-112810_T29SND.tif",
                  "S2A_L2A_20180321-112321_T29SND.tif",
                  "S2A_L2A_20180619-112602_T29SND.tif",
                  "S2A_L2A_20180729-112845_T29SND.tif",
                  "S2A_L2A_20180818-112627_T29SND.tif",
-                 "S2A_L2A_20180927-112959_T29SND.tif",
-                 "S2A_L2A_20181007-112305_T29SND.tif")
+                 "S2A_L2A_20180927-112959_T29SND.tif")
 
 paths_images = unlist(lapply(list_images2,join_path,images_folder))
 ```
@@ -73,13 +73,25 @@ paths_images = unlist(lapply(list_images2,join_path,images_folder))
 
 # Example Polygon Obj 92266
 
+We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
+
+```{r }
+shape = legend_water[legend_water$OBJECTID == 92266 ,]
+shape_buffer = legend_water_buffer[legend_water_buffer$OBJECTID == 92266 ,]
+
+plot(st_geometry(shape),border='red')
+plot(st_geometry(shape_buffer), col = 'blue', add=T)
+
+```
+
+This template focus especifically in the general steps of how to export information for future classification process, therefore, I will only work with the original polygon.
+
 ## sraster object
 
 For the 92266 polygon we want to extract the spectral and temporal information associated to Snetinel 2 2018. The function as_raster also provides NDVI index. Since we have 9 images with 10 bands of sentinel 2, plus NDVI per image, in total we have 99 layers for our cluster analysis.
-91966
-92266
+
+
 ```{r }
-shape = query_water[7,]
 result = as_sraster(shape,paths_images)
 result
 plot(funct_plot((result$array)[,,1]))
@@ -106,6 +118,7 @@ plot(funct_plot((result_clip$array)[,,1]))
 ```{r }
 result_clip = clip_sraster(result, mask = cluster_matrix, type ="rule_ndvi_water")
 plot(funct_plot((result_clip$array)[,,1]))
+as.data.frame(result_clip)
 ```
 
 # Working with more polygons
@@ -121,11 +134,11 @@ This example covers only water. I want only call 20 polygons for this example
 #===============================
 #Goal : stratified random selection of traing samples at level of polygon, (queriying only one class)
 
-n_samples = 20
+n_samples = 30
 set.seed(123)   #setting same random selection for testing
 index = sample(1:dim(legend_water)[1], n_samples,replace = FALSE)
 query_water = legend_water[index,]
-
+query_water_buffer = legend_water_buffer[index,]
 ```
 
 
@@ -133,12 +146,12 @@ The following script contains the workflow that generalize the process done with
 
 ```{r eval= FALSE }
 list_shapes = split(query_water,query_water$OBJECTID)
-
+list_shapes_buffer = split(query_water_buffer,query_water_buffer$OBJECTID)
 
 workflow <- function(shape,paths_images){
           result = as_sraster(shape,paths_images)
           cluster_matrix = kmeans_sraster(result)
-          result_clip = clip_sraster(result, mask = cluster_matrix, type ="rule_ndvi_water")
+          result_clip = clip_sraster(result, mask = cluster_matrix, type ="rule_ndvi_water")  # Majority rule
           return(as.data.frame(result_clip))
           }
 
@@ -147,12 +160,53 @@ result_list = lapply(list_shapes,workflow,paths_images)
 result_df = do.call("rbind",result_list)
 ```
 
+## Bhattaccharya distance
+
+
+
+```{r }
+copy_result_df = result_df
+st_geometry(copy_result_df)<- NULL
+
+#mean and covariance matrix for all the samples
+mean_vector = function(x) mean(x,na.rm=TRUE)
+mean_a = apply(copy_result_df[,-1],2,mean_vector)
+cov_a = cov(copy_result_df[,-1],use = 'na.or.complete')
+
+list_data_polygon = split(copy_result_df,copy_result_df$Object)
+
+workflow_battacharyya = function(x,mean_a, cov_a){
+  mean_b = apply(x[,-1],2,mean_vector)
+  cov_b = cov(x[,-1],use = 'na.or.complete')
+  #Bhattacharyya distance between a and b distribution
+  dist_batha = bhattacharyya.dist(mean_a, mean_b, cov_a, cov_b)
+  name_polygon = x[1,1]
+  result_dist = c(name_polygon,dist_batha)
+  return(result_dist)
+}
+
+distances_battacharyya = lapply(list_data_polygon, workflow_battacharyya, mean_a, cov_a)
+
+distance_battacharyya_df = do.call("rbind",distances_battacharyya)
+
+q65 = quantile(distance_battacharyya_df[,2] ,probs = c(0.65),na.rm = TRUE)
+
+selected_polygon_names = distance_battacharyya_df[distance_battacharyya_df[,2]<=q65 &
+                                                    !is.na(distance_battacharyya_df[,2]),1]
+
+result_df2 = result_df[result_df$Object %in% selected_polygon_names,]
+```
+
+
+
+
 To save the results
 
 ```{r eval= FALSE}
-st_write(result_df, "output1.csv", layer_options = "GEOMETRY=AS_XY")
-```
 
+st_crs(result_df)<-st_crs(legend)
+st_write(result_df, "output_water_clean_2.csv", layer_options = "GEOMETRY=AS_XY")
+```
 
 
 

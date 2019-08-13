@@ -74,6 +74,7 @@ read_raster <-function(files_raster, xyoffs, reg, r_shape_array, shape){
   }
   multiarray = array(unlist(list_bands),dim = c(reg[2], reg[1] , length(list_bands)))
   result = list()
+  result[["object"]] = shape$OBJECTID
   result[["bands"]] <- names(list_bands)
   result[["array"]] <- multiarray
   return(result)
@@ -123,6 +124,7 @@ as_sraster <- function(shape,files_raster){
 print.sraster <-
   function(x,...){
     cat("class:    sraster", "\n")
+    cat("Object: ", x$object , "\n")
     cat("space dimension: nrows: ", dim(x$array)[1], " nccols: ", dim(x$array)[2],"\n")
     cat("Number of layers: ", dim(x$array)[3],"\n")
     cat("Number of images: ", x$n_images,"\n")
@@ -201,6 +203,9 @@ clip_sraster = function(x, mask, type){
     mask[mask != lowest_ndvi] <- NA
     mask[mask == lowest_ndvi] <- 1
   }
+  else{
+    stop("provide one of the methods")
+  }
 
   func_mask <- function(y, mask) y * mask
 
@@ -223,8 +228,8 @@ as.data.frame.sraster <-
 
     data_2d_nonan = data_2d[!index_nonan,]
     coordxy = x$coordinates[!index_nonan,]
-    df_data_2d_nonan = data.frame(coordxy, data_2d_nonan)
-    colnames(df_data_2d_nonan) <- c("x","y",x$bands)
+    df_data_2d_nonan = data.frame(x$object,coordxy, data_2d_nonan)
+    colnames(df_data_2d_nonan) <- c("Object","x","y",x$bands)
 
     df_spatial = st_as_sf(df_data_2d_nonan, coords = c("x","y"))
     return(df_spatial)
