@@ -182,9 +182,8 @@ The following script contains the workflow that generalize the process done with
 workflow <- function(shape, paths_images, type){
           result = as_sraster(shape,paths_images)
           cluster_matrix = kmeans_sraster(result)
-          result_clip = clip_sraster(result, mask = cluster_matrix, type)  # 
+          result_clip = clip_sraster(result, mask = cluster_matrix, type)
           return(as.data.frame(result_clip))
-          print(shape$OBJECTID)
           }
 ```
 
@@ -212,14 +211,14 @@ st_geometry(copy_result_df1)<- NULL
 
 #mean and covariance matrix for all the samples
 mean_vector = function(x) mean(x,na.rm=TRUE)
-mean_a = apply(copy_result_df1[,-1],2,mean_vector)
-cov_a = cov(copy_result_df1[,-1],use = 'na.or.complete')
+mean_a = apply(copy_result_df1[,c(-1,-2)],2,mean_vector)
+cov_a = cov(copy_result_df1[,c(-1,-2)],use = 'na.or.complete')
 
 list_data_polygon = split(copy_result_df1,copy_result_df1$Object)
 
 workflow_bhattacharyya = function(x,mean_a, cov_a){
-  mean_b = apply(x[,-1],2,mean_vector)
-  cov_b = cov(x[,-1],use = 'na.or.complete')
+  mean_b = apply(x[,c(-1,-2)],2,mean_vector)
+  cov_b = cov(x[,c(-1,-2)],use = 'na.or.complete')
   #Bhattacharyya distance between a and b distribution
   dist_batha = bhattacharyya.dist(mean_a, mean_b, cov_a, cov_b)
   name_polygon = x[1,1]

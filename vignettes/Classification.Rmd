@@ -1,0 +1,87 @@
+---
+title: "Tutorial of sraster"
+author: "DGT Portugal, William Martinez"
+date: "05/08/2019"
+fig_caption: TRUE
+output:
+  html_document: 
+    theme: journal
+    toc: true
+    toc_depth: 4
+    number_section: true
+    code_folding: hide
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(kableExtra)
+```
+
+# Introduction
+
+
+I want to select 1000 samples per class. To do so also I will consider to keep the same amount of samples per polygons, or at least the same proportion.
+
+# Importing data
+
+```{r}
+
+file_directory = 'C:\\IPSTERS\\sraster\\ins\\sampling_1'
+list_files = lapply(list.files(file_directory),function(x){paste0(file_directory,"\\",x)})
+
+group_by = 'Object'
+nsamples = 1000
+
+sampling_strata <- function(file_x, nsamples, group_by ){
+  x = read.csv(file_x,sep = ";", header = TRUE)
+  n_samples_class = table(x[,group_by])
+  n_total_classes = length(n_samples_class)
+  n_total_samples = sum(n_samples_class)
+  n_samples_query = round(nsamples/n_total_classes)
+  #split
+  x_split = split(x,x[,group_by])
+  x_split_random = lapply(x_split, function(y){y[sample(1:dim(y)[1],size = n_samples_query,replace = FALSE),]})
+  x_random = do.call("rbind", x_split_random)
+  return(x_random)
+}
+
+data_random_split = lapply(list_files, sampling_strata, nsamples, group_by)
+data_random = do.call("rbind",data_random_split)
+
+#write.csv(data_random,"output3.csv")
+
+```
+
+
+#classification random forest
+
+
+
+
+```{r}
+func_na <- function(x){if(all(!is.na(x))){return(x)}}
+
+na_rows = apply(data_random,1,func_na)
+
+data_random2 = data_random[-which(all(!is.na(data_random$NDVI_5))), ]#
+#data_random2 = data_random
+
+set.seed(111)
+ind = sample(2, nrow(data_random2), replace = TRUE, prob = c(0.7,0.3))
+
+train = data_random2[ind==1,-c(1,2,3)]
+test = data_random2[ind==2,-c(1,2,3)]
+
+set.seed(222)
+model_rf = randomForest::randomForest(Class~. , data = train,ntree = 500)
+print(model_rf)
+
+```
+
+```{r}
+library(caret)
+pred_test = predict(model_rf, test)
+caret::confusionMatrix(pred_test, test$Class)
+```
