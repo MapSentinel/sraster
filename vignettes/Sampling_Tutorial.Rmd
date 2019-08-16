@@ -43,7 +43,7 @@ file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
 table(legend$Legend)
 
-class_analysis = 'wetland'
+class_analysis = 'urban'
 
 legend_class = legend[which(legend$Legend == class_analysis),]
 rm(legend)
@@ -107,8 +107,8 @@ paths_images = unlist(lapply(list_images,join_path,images_folder))
 We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
 
 ```{r }
-shape = legend_class_q1[1,]
-shape_buffer = legend_class_buffer_q1[1,]
+shape = legend_class_q1[legend_class_q1$OBJECTID == 5949,]  
+shape_buffer = legend_class_buffer_q1[legend_class_q1$OBJECTID == 5949,]
 
 plot(st_geometry(shape),border='red')
 plot(st_geometry(shape_buffer), col = 'blue', add=T)
@@ -154,7 +154,7 @@ plot(funct_plot((result_clip$array)[,,1]))
 ## Extracting spectral temporal information with ndvi rule for water class
 
 ```{r }
-result_clip = clip_sraster(result, mask = cluster_matrix, type ="rule_ndvi_water")
+result_clip = clip_sraster(result, mask = cluster_matrix, type ="rule_ndvi_urban")
 plot(funct_plot((result_clip$array)[,,1]))
 ```
 
@@ -197,7 +197,7 @@ legend_class_buffer_q2 = legend_class_buffer_q1[index,]
 
 list_shapes = split(legend_class_buffer_q2,legend_class_buffer_q2$OBJECTID)
 
-result_list = lapply(list_shapes, workflow, paths_images, type ="Majority rule")
+result_list = lapply(list_shapes, workflow, paths_images, type ="rule_ndvi_urban")
 
 result_df1 = do.call("rbind",result_list)
 ```
@@ -244,7 +244,7 @@ To save the results
 ```{r }
 #eval= FALSE
 st_crs(result_df2)<-st_crs(legend_class)
-st_write(result_df2, paste0("output_",class_analysis,"_paris.csv"), layer_options = "GEOMETRY=AS_XY")
+st_write(result_df2, paste0("output_",class_analysis,"_ndvirule1.csv"), layer_options = "GEOMETRY=AS_XY")
 ```
 
 #saving pixel values without processing

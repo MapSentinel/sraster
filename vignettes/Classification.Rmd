@@ -28,7 +28,7 @@ I want to select 1000 samples per class. To do so also I will consider to keep t
 
 ```{r}
 
-file_directory = 'C:\\IPSTERS\\sraster\\ins\\sampling_1'
+file_directory = 'C:\\IPSTERS\\sraster\\ins\\sampling_2'
 list_files = lapply(list.files(file_directory),function(x){paste0(file_directory,"\\",x)})
 
 group_by = 'Object'
@@ -48,9 +48,6 @@ sampling_strata <- function(file_x, nsamples, group_by ){
 }
 
 data_random_split = lapply(list_files, sampling_strata, nsamples, group_by)
-data_random = do.call("rbind",data_random_split)
-
-#write.csv(data_random,"output3.csv")
 
 ```
 
@@ -58,23 +55,48 @@ data_random = do.call("rbind",data_random_split)
 #classification random forest
 
 
+Since we have 22 polygons per class, I will select 15 for training an 7 for testing. 
+
+```{r}
+
+fuction_train_selection <- function(x){
+  polygons_class = unique(x$Object)
+  ind = sample(2, length(polygons_class), replace = TRUE, prob = c(0.7,0.3))
+  train_class = polygons_class[ind==1]
+  test_class = polygons_class[ind==2]
+  train_df = x[x$Object %in% train_class,]
+  train_df$type = "Training"
+  test_df = x[x$Object %in% test_class,]
+  test_df$type = "Test"
+  df_result = rbind(train_df,test_df)
+  return(df_result)
+}
+
+data_random_split2 = lapply(data_random_split, fuction_train_selection)
+
+data_random = do.call("rbind",data_random_split2)
+#write.csv(data_random,"output5.csv")
+```
+
 
 
 ```{r}
-func_na <- function(x){if(all(!is.na(x))){return(x)}}
 
-na_rows = apply(data_random,1,func_na)
+remove_na_df = function(x){
+  x$row <- 1:nrow(x)
+  list_rows = split(x,x$row)
+  list_rows_wn = lapply(list_rows,function(r){if(all(!is.na(r))){return(r)}})
+  result_df = do.call("rbind", list_rows_wn)
+  result_df$row <- NULL
+  return(result_df)
+}
 
-data_random2 = data_random[-which(all(!is.na(data_random$NDVI_5))), ]#
-#data_random2 = data_random
+data_random2 = remove_na_df(data_random)
 
-set.seed(111)
-ind = sample(2, nrow(data_random2), replace = TRUE, prob = c(0.7,0.3))
+train = data_random2[data_random2$type == "Training",-c(1,2,3,82)]
+test = data_random2[data_random2$type == "Test",-c(1,2,3,82)]
 
-train = data_random2[ind==1,-c(1,2,3)]
-test = data_random2[ind==2,-c(1,2,3)]
-
-set.seed(222)
+#set.seed(222)
 model_rf = randomForest::randomForest(Class~. , data = train,ntree = 500)
 print(model_rf)
 
@@ -83,5 +105,16 @@ print(model_rf)
 ```{r}
 library(caret)
 pred_test = predict(model_rf, test)
-caret::confusionMatrix(pred_test, test$Class)
+result_test = caret::confusionMatrix(pred_test, test$Class)
+result_test
+```
+```{r}
+#overall_accuracy = result_test$overall
+#f1 = result_test$byClass[,7]
+#sensitivity_class = result_test$byClass[,1]
+#result_stat = rbind(result_stat,c(overall_accuracy,f1,sensitivity_class))
+
+#write.csv(result_stat,"stat.csv")
+gc()
+rm(list=ls())
 ```

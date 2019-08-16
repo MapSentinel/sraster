@@ -115,6 +115,7 @@ as_sraster <- function(shape,files_raster){
   coordinates = data.frame(x=c(coord_x_matrix), y=c(coord_y_matrix))
   result$coordinates = coordinates
   result$n_images = length(files_raster)
+  result$label = as.character(shape$Legend)
 
   class(result) <- "sraster"
   return(result)
@@ -125,6 +126,7 @@ print.sraster <-
   function(x,...){
     cat("class:    sraster", "\n")
     cat("Object: ", x$object , "\n")
+    cat("Label: ", x$label , "\n")
     cat("space dimension: nrows: ", dim(x$array)[1], " nccols: ", dim(x$array)[2],"\n")
     cat("Number of layers: ", dim(x$array)[3],"\n")
     cat("Number of images: ", x$n_images,"\n")
@@ -203,6 +205,29 @@ clip_sraster = function(x, mask, type){
     mask[mask != lowest_ndvi] <- NA
     mask[mask == lowest_ndvi] <- 1
   }
+  else if(type == 'No rule' ){
+    mask[!is.na(mask)] <- 1
+  }
+  else if(type == 'rule_ndvi_urban' ){
+    bands_ndvi = grep("NDVI",x$bands)
+    cluster_n = as.numeric(names(table(mask)))
+    median_ndvi = c(1:length(cluster_n))
+    median_ndvi[]<-0
+    for(i in cluster_n){
+      list_ndvi = list()
+      for(j in bands_ndvi){
+        bndvi = x$array[,,j]
+        list_ndvi[[j]] = c(bndvi[mask==i])
+      }
+      median_ndvi[i] = median(unlist(list_ndvi),na.rm = TRUE)
+    }
+    #decision rule
+    ind_cluster = which(median_ndvi>=0.1 & median_ndvi<0.4)
+    median_ndvi_query = median_ndvi[ind_cluster]
+    lowest_ndvi = order(median_ndvi_query)[1]
+    mask[mask != lowest_ndvi] <- NA
+    mask[mask == lowest_ndvi] <- 1
+  }
   else{
     stop("provide one of the methods")
   }
@@ -228,8 +253,8 @@ as.data.frame.sraster <-
 
     data_2d_nonan = data_2d[!index_nonan,]
     coordxy = x$coordinates[!index_nonan,]
-    df_data_2d_nonan = data.frame(x$object,coordxy, data_2d_nonan)
-    colnames(df_data_2d_nonan) <- c("Object","x","y",x$bands)
+    df_data_2d_nonan = data.frame(x$object, x$label,coordxy, matrix(data_2d_nonan,nrow = dim(coordxy)[1]))
+    colnames(df_data_2d_nonan) <- c("Object","Label","x","y",x$bands)
 
     df_spatial = st_as_sf(df_data_2d_nonan, coords = c("x","y"))
     return(df_spatial)
