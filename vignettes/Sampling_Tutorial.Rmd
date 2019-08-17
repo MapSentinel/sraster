@@ -1,0 +1,278 @@
+---
+title: "Tutorial of sraster"
+author: "DGT Portugal, William Martinez"
+date: "05/08/2019"
+fig_caption: TRUE
+output:
+  html_document: 
+    theme: journal
+    toc: true
+    toc_depth: 4
+    number_section: true
+    code_folding: hide
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(kableExtra)
+```
+
+# Introduction
+
+The attempt of this tutorial is to document the implmentation of the cluster analysis developed in Pari's paper. 
+
+First at all, we wil import a set of modules that will speed up the performance of this excercise from the the document clip_raster with **R** extension. Moreover, I will call COS map 2015 with shapefile extension that intersect  10 images of 2018 over the year. For this example I will call only shapes associated to water bodies.
+
+```{r, message=FALSE, warning=FALSE}
+
+source('C:\\IPSTERS\\sraster\\R\\clip_raster.R')
+
+#===============================
+#Example
+#===============================
+
+library(rgdal)
+library(sf)
+library(rasterVis)
+library(stars)
+library(raster)
+
+file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
+legend = st_read(file_shape)
+table(legend$Legend)
+
+class_analysis = 'urban'
+
+legend_class = legend[which(legend$Legend == class_analysis),]
+rm(legend)
+```
+## Size of the polygons
+
+
+```{r}
+areas_poly = st_area(legend_class)
+boxplot(areas_poly)
+
+quantile(areas_poly,probs=c(0.25,0.5,0.65,0.75,1))
+q25 = quantile(areas_poly,probs=c(0.25))
+q75 = quantile(areas_poly,probs=c(0.75))
+
+areas_poly_limit = areas_poly[areas_poly >= q25 & areas_poly < q75]
+
+boxplot(areas_poly_limit)
+
+cat("Number of polygons: ", length(areas_poly_limit))
+
+```
+
+## Query based on area
+
+```{r}
+legend_class_q1 = legend_class[which(areas_poly >= q25 & areas_poly < q75),]
+#query 1: by area
+legend_class_buffer_q1 = st_buffer(legend_class_q1,-20)
+```
+
+## Images
+
+
+```{r, message=FALSE, warning=FALSE}
+images_folder = 'C:\\IPSTERS\\IMAGES'
+join_path = function(x,path_folder){
+  a = strsplit(x,'[.]')
+  format_file = a[[1]][length(a[[1]])]
+  if(format_file == 'tif'){
+    return(paste0(path_folder,'/',x))
+  }
+}
+
+list_images = c("S2A_L2A_20171002-113001_T29SND.tif",
+                 "S2A_L2A_20171221-112810_T29SND.tif",
+                 "S2A_L2A_20180321-112321_T29SND.tif",
+                 "S2A_L2A_20180619-112602_T29SND.tif",
+                 "S2A_L2A_20180729-112845_T29SND.tif",
+                 "S2A_L2A_20180818-112627_T29SND.tif",
+                 "S2A_L2A_20180927-112959_T29SND.tif")
+
+paths_images = unlist(lapply(list_images,join_path,images_folder))
+```
+
+
+
+
+# Example Polygon
+
+We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
+
+```{r }
+shape = legend_class_q1[legend_class_q1$OBJECTID == 5949,]  
+shape_buffer = legend_class_buffer_q1[legend_class_q1$OBJECTID == 5949,]
+
+plot(st_geometry(shape),border='red')
+plot(st_geometry(shape_buffer), col = 'blue', add=T)
+```
+
+This template focus especifically in the general steps of how to export information for future classification process, therefore, I will only work with the original polygon.
+
+## sraster object
+
+For the 92266 polygon we want to extract the spectral and temporal information associated to Snetinel 2 2018. The function as_raster also provides NDVI index. Since we have 9 images with 10 bands of sentinel 2, plus NDVI per image, in total we have 99 layers for our cluster analysis.
+
+
+```{r }
+result = as_sraster(shape_buffer,paths_images)
+result
+plot(funct_plot((result$array)[,,1]))
+```
+
+## K means
+
+Internally the number of cluster is defined by the Calinski-Harabasz index. As result, we have 3 clusters
+
+```{r }
+cluster_matrix = kmeans_sraster(result)
+
+mask_raster = funct_plot(cluster_matrix)
+mask_raster = as.factor(mask_raster)
+rat <- levels(mask_raster)[[1]]
+name_clusters = names(table(cluster_matrix))
+rat[["cluster"]] <- name_clusters
+levels(mask_raster) <- rat
+
+levelplot(mask_raster,col.regions=c("red","blue","yellow","green","black","orange"))
+```
+
+### Extracting spectral temporal information with Majority rule
+
+```{r }
+result_clip = clip_sraster(result, mask = cluster_matrix, type ="Majority rule")
+plot(funct_plot((result_clip$array)[,,1]))
+```
+
+## Extracting spectral temporal information with ndvi rule for water class
+
+```{r }
+result_clip = clip_sraster(result, mask = cluster_matrix, type ="rule_ndvi_urban")
+plot(funct_plot((result_clip$array)[,,1]))
+```
+
+# Working with more polygons
+
+Well, this workflow also attempts to construct a database with the spectral-temporal information that must be part of the trainig and validation modelling. So here we want to evaluate haw fast we can retrieve pseudotraining and put it a file that later on we will use for modelling. 
+
+This example covers only water. I want only call 20 polygons for this example
+
+```{r }
+#=========================
+#random selection
+#=========================
+#Goal : stratified random selection of traing samples at level of polygon, (queriying only one class)
+
+n_samples = 34
+set.seed(123)   #setting same random selection for testing
+index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
+```
+
+
+The following script contains the workflow that generalize the process done with the polygon of water done above. We require 3.5 seconds per polygon, so working with 20 this process can take one minute and 10 seconds more.
+
+```{r}
+workflow <- function(shape, paths_images, type){
+          result = as_sraster(shape,paths_images)
+          cluster_matrix = kmeans_sraster(result)
+          result_clip = clip_sraster(result, mask = cluster_matrix, type)
+          return(as.data.frame(result_clip))
+          }
+```
+
+
+### Cluster analysis
+
+
+```{r }
+#query 2  eval= FALSE 
+legend_class_buffer_q2 = legend_class_buffer_q1[index,]
+
+list_shapes = split(legend_class_buffer_q2,legend_class_buffer_q2$OBJECTID)
+
+result_list = lapply(list_shapes, workflow, paths_images, type ="rule_ndvi_urban")
+
+result_df1 = do.call("rbind",result_list)
+```
+
+## Bhattacharyya distance
+
+
+```{r }
+copy_result_df1 = result_df1
+st_geometry(copy_result_df1)<- NULL
+
+#mean and covariance matrix for all the samples
+mean_vector = function(x) mean(x,na.rm=TRUE)
+mean_a = apply(copy_result_df1[,c(-1,-2)],2,mean_vector)
+cov_a = cov(copy_result_df1[,c(-1,-2)],use = 'na.or.complete')
+
+list_data_polygon = split(copy_result_df1,copy_result_df1$Object)
+
+workflow_bhattacharyya = function(x,mean_a, cov_a){
+  mean_b = apply(x[,c(-1,-2)],2,mean_vector)
+  cov_b = cov(x[,c(-1,-2)],use = 'na.or.complete')
+  #Bhattacharyya distance between a and b distribution
+  dist_batha = bhattacharyya.dist(mean_a, mean_b, cov_a, cov_b)
+  name_polygon = x[1,1]
+  result_dist = c(name_polygon,dist_batha)
+  return(result_dist)
+}
+
+distances_bhattacharyya = lapply(list_data_polygon, workflow_bhattacharyya, mean_a, cov_a)
+
+distance_bhattacharyya_df = do.call("rbind",distances_bhattacharyya)
+
+q65 = quantile(distance_bhattacharyya_df[,2] ,probs = c(0.65),na.rm = TRUE)
+
+selected_polygon_names = distance_bhattacharyya_df[distance_bhattacharyya_df[,2]<=q65 &
+                                                    !is.na(distance_bhattacharyya_df[,2]),1]
+
+result_df2 = result_df1[result_df1$Object %in% selected_polygon_names,]
+```
+
+
+To save the results
+
+```{r }
+#eval= FALSE
+st_crs(result_df2)<-st_crs(legend_class)
+st_write(result_df2, paste0("output_",class_analysis,"_ndvirule1.csv"), layer_options = "GEOMETRY=AS_XY")
+```
+
+#saving pixel values without processing
+
+```{r }
+#eval= FALSE
+legend_class_buffer_q3 = legend_class_buffer_q2[legend_class_buffer_q2$OBJECTID %in% selected_polygon_names,]
+
+list_shapes = split(legend_class_buffer_q3,legend_class_buffer_q3$OBJECTID)
+
+result_list_nr = lapply(list_shapes, workflow, paths_images, type ="No rule")
+result_df_nr = do.call("rbind",result_list_nr)
+st_crs(result_df_nr)<-st_crs(legend_class)
+st_write(result_df_nr, paste0("output_",class_analysis,"_norule.csv"), layer_options = "GEOMETRY=AS_XY")
+```
+
+
+
+#saving pixel values ndvi processing
+
+```{r }
+#result_list_rndvi = lapply(list_shapes, workflow, paths_images, type ="rule_ndvi_water")
+#result_df_rndvi = do.call("rbind",result_list_rndvi)
+#st_crs(result_df_rndvi)<-st_crs(legend_class)
+#st_write(result_df_rndvi, paste0("output_",class_analysis,"_ndvirule.csv"), layer_options = "GEOMETRY=AS_XY")
+rm(list=ls())
+gc()
+```
+
+
+
