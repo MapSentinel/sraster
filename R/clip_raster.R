@@ -208,7 +208,7 @@ clip_sraster = function(x, mask, type){
   else if(type == 'No rule' ){
     mask[!is.na(mask)] <- 1
   }
-  else if(type == 'rule_ndvi_urban' ){
+  else if(type == 'rule_ndvi_urban'){
     bands_ndvi = grep("NDVI",x$bands)
     cluster_n = as.numeric(names(table(mask)))
     median_ndvi = c(1:length(cluster_n))
@@ -225,20 +225,23 @@ clip_sraster = function(x, mask, type){
     ind_cluster = which(median_ndvi>=0.1 & median_ndvi<0.4)
     median_ndvi_query = median_ndvi[ind_cluster]
     lowest_ndvi = order(median_ndvi_query)[1]
-    mask[mask != lowest_ndvi] <- NA
-    mask[mask == lowest_ndvi] <- 1
+    mask[mask != ind_cluster[lowest_ndvi]] <- NA
+    mask[mask == ind_cluster[lowest_ndvi]] <- 1
   }
   else{
     stop("provide one of the methods")
   }
 
-  func_mask <- function(y, mask) y * mask
-
-  array_clip_list = lapply(asplit(x$array,3),func_mask,mask)
+  func_mask <- function(y, mask) list(y * mask)
+  array_clip_list = apply(x$array, 3, func_mask,mask)
+  array_clip_list = lapply(array_clip_list, "[[", 1)
   array_clip = array(unlist(array_clip_list),dim = dim(x$array))
   x$array <- array_clip
   return(x)
 }
+
+
+
 
 #===============================
 #as data frame sf
