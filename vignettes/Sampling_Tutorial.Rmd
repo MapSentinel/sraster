@@ -16,7 +16,7 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(knitr)
-library(kableExtra)
+#library(kableExtra)
 ```
 
 # Introduction
@@ -27,7 +27,8 @@ First at all, we wil import a set of modules that will speed up the performance 
 
 ```{r, message=FALSE, warning=FALSE}
 
-source('C:\\IPSTERS\\sraster\\R\\clip_raster.R')
+source('/home/willimarti2008/Documents/DGT/sraster/R/clip_raster.R')
+#source('C:\\IPSTERS\\sraster\\R\\clip_raster.R')
 
 #===============================
 #Example
@@ -39,11 +40,12 @@ library(rasterVis)
 library(stars)
 library(raster)
 
-file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
+#file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
+file_shape = '/home/willimarti2008/Documents/DGT/COS2015/COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
 table(legend$Legend)
 
-class_analysis = 'urban'
+class_analysis = 'baresoil'
 
 legend_class = legend[which(legend$Legend == class_analysis),]
 rm(legend)
@@ -79,7 +81,8 @@ legend_class_buffer_q1 = st_buffer(legend_class_q1,-20)
 
 
 ```{r, message=FALSE, warning=FALSE}
-images_folder = 'C:\\IPSTERS\\IMAGES'
+#images_folder = 'C:\\IPSTERS\\IMAGES'
+images_folder = '/home/willimarti2008/Documents/DGT/images'
 join_path = function(x,path_folder){
   a = strsplit(x,'[.]')
   format_file = a[[1]][length(a[[1]])]
@@ -107,8 +110,8 @@ paths_images = unlist(lapply(list_images,join_path,images_folder))
 We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
 
 ```{r }
-shape = legend_class_q1[legend_class_q1$OBJECTID == 5949,]  
-shape_buffer = legend_class_buffer_q1[legend_class_q1$OBJECTID == 5949,]
+shape = legend_class_q1[1,]  
+shape_buffer = legend_class_buffer_q1[1,]
 
 plot(st_geometry(shape),border='red')
 plot(st_geometry(shape_buffer), col = 'blue', add=T)
@@ -170,7 +173,7 @@ This example covers only water. I want only call 20 polygons for this example
 #=========================
 #Goal : stratified random selection of traing samples at level of polygon, (queriying only one class)
 
-n_samples = 34
+n_samples = 40
 set.seed(123)   #setting same random selection for testing
 index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
 ```
@@ -244,7 +247,7 @@ To save the results
 ```{r }
 #eval= FALSE
 st_crs(result_df2)<-st_crs(legend_class)
-st_write(result_df2, paste0("output_",class_analysis,"_ndvirule1.csv"), layer_options = "GEOMETRY=AS_XY")
+st_write(result_df2, paste0("output_",class_analysis,"_ndvirule.csv"), layer_options = "GEOMETRY=AS_XY")
 ```
 
 #saving pixel values without processing
