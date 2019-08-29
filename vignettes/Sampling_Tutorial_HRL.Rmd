@@ -1,0 +1,281 @@
+---
+title: "Tutorial of sraster: working with HRL"
+author: "DGT Portugal, William Martinez"
+date: "05/08/2019"
+fig_caption: TRUE
+output:
+  html_document: 
+    theme: journal
+    toc: true
+    toc_depth: 4
+    number_section: true
+    code_folding: hide
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+#library(kableExtra)
+```
+
+# Introduction
+
+The attempt of this tutorial is to document the implmentation of the cluster analysis developed in Pari's paper. 
+
+
+```{r, message=FALSE, warning=FALSE}
+source('C:\\IPSTERS\\sraster\\R\\clip_raster.R')
+
+library(rgdal)
+library(sf)
+library(rasterVis)
+library(stars)
+library(raster)
+
+file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
+legend = st_read(file_shape)
+table(legend$Legend)
+
+class_analysis = 'conifers'
+
+legend_class = legend[which(legend$Legend == class_analysis),]
+rm(legend)
+```
+
+## Query Polygons based on HRL
+
+To transform all HRL mask to polygon vector may represent a really demanding computationall task. This task is mean to later on applying an intersection wiht the polygons of COS. However, before that intersection we require that the mask layer shrinks boundaries in 20 meters in order to have higher certainty that the pixel is covering this kind of class. 
+
+### raster to points
+
+```{r}
+file_mask = c('C:\\IPSTERS\\sraster\\images\\Mask_coniferus.tif')
+hrl = raster(file_mask)
+hrl_points = st_as_sf(rasterToPoints(hrl,spatial = TRUE))
+```
+
+
+### Intersection
+```{r}
+intersect_poly_hrl_cos = st_intersects(legend_class , hrl_points)
+```
+
+
+```{r}
+number_points = function(x, threshold){
+    if(length(x)>= threshold){
+      return(length(x))
+    }else
+    {
+      return(99999)
+    }
+}
+#threshold: at least one pixel is intersected
+len_vector = lapply(intersect_poly_hrl_cos, number_points, threshold = 20)
+index_poly = which(unlist(len_vector) != 99999)
+legend_class_q0 = legend_class[index_poly,]
+#hrl_points = NULL
+```
+
+
+## Size of the polygons
+
+
+```{r}
+library(units)
+areas_poly = st_area(legend_class_q0)
+boxplot(areas_poly,col = "bisque")
+
+quantile(areas_poly,probs=c(0.25,0.5,0.65,0.75,1))
+lim_max = quantile(areas_poly,probs=c(0.65))
+lim_min = 10000   # Minimun mapping unit
+units(lim_min) <- as_units("m^2")
+
+areas_poly_limit = areas_poly[areas_poly >= lim_min & areas_poly < lim_max]
+
+boxplot(areas_poly_limit,col = "bisque")
+
+cat("Number of polygons: ", length(areas_poly_limit))
+```
+
+## Query based on area
+
+```{r}
+legend_class_q1 = legend_class_q0[which(areas_poly >= lim_min & areas_poly < lim_max),]
+```
+
+
+## Images
+
+```{r, message=FALSE, warning=FALSE}
+images_folder = 'C:\\IPSTERS\\IMAGES'
+join_path = function(x,path_folder){
+  a = strsplit(x,'[.]')
+  format_file = a[[1]][length(a[[1]])]
+  if(format_file == 'tif'){
+    return(paste0(path_folder,'/',x))
+  }
+}
+
+list_images = c("S2A_L2A_20171002-113001_T29SND.tif",
+                 "S2A_L2A_20171221-112810_T29SND.tif",
+                 "S2A_L2A_20180321-112321_T29SND.tif",
+                 "S2A_L2A_20180619-112602_T29SND.tif",
+                 "S2A_L2A_20180729-112845_T29SND.tif",
+                 "S2A_L2A_20180818-112627_T29SND.tif",
+                 "S2A_L2A_20180927-112959_T29SND.tif")
+
+paths_images = unlist(lapply(list_images,join_path,images_folder))
+```
+
+
+## Example
+
+We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
+
+```{r }
+shape = legend_class_q1[1,] 
+plot(st_geometry(shape),border='red')
+```
+
+```{r }
+result = as_sraster(shape,paths_images)
+result
+plot(funct_plot((result$array)[,,11]))
+```
+
+
+### Coniferos Mask HRL
+
+```{r }
+mask_hrl_sraster = as_sraster(shape,file_mask,ndvi = FALSE)
+mask_hrl  = mask_hrl_sraster$array[,,1] 
+mask_hrl_plot = funct_plot(mask_hrl)
+plot(mask_hrl_plot)
+```
+
+### Extracting spectral temporal information using HRL boundaries
+
+```{r }
+result_clip_hrl = clip_sraster(result, mask = mask_hrl , type ="No rule")
+plot(funct_plot((result_clip_hrl$array)[,,11]))
+```
+
+### K means
+
+Internally the number of cluster is defined by the Calinski-Harabasz index. As result, we have 2 clusters
+
+```{r }
+mask_cluster = kmeans_sraster(result_clip_hrl)
+
+mask_cluster_plot = funct_plot(mask_cluster)
+mask_cluster_plot = as.factor(mask_cluster_plot)
+rat <- levels(mask_cluster_plot)[[1]]
+name_clusters = names(table(mask_cluster))
+rat[["cluster"]] <- name_clusters
+levels(mask_cluster_plot) <- rat
+
+levelplot(mask_cluster_plot, col.regions=c("red","blue","yellow","green","black","orange"))
+```
+
+### Extracting spectral temporal information with Majority rule
+
+```{r }
+result_clip_cluster = clip_sraster(result_clip_hrl, mask = mask_cluster, type ="Majority rule")
+plot(funct_plot((result_clip_cluster$array)[,,11]))
+```
+
+# Working with more polygons
+
+Well, this workflow also attempts to construct a database with the spectral-temporal information that must be part of the trainig and validation modelling. So here we want to evaluate haw fast we can retrieve pseudotraining and put it a file that later on we will use for modelling. 
+
+```{r }
+n_samples = 60
+set.seed(123)   #setting same random selection for testing
+index = sample(1:dim(legend_class_q1)[1], n_samples,replace = FALSE)
+```
+
+
+The following script contains the workflow that generalize the process done with the polygon of water done above. We require 3.5 seconds per polygon, so working with 20 this process can take one minute and 10 seconds more.
+
+```{r}
+workflow <- function(shape, paths_images, type){
+          result = as_sraster(shape,paths_images)
+          #mask HRL
+          mask_hrl_sraster = as_sraster(shape,file_mask,ndvi = FALSE)
+          mask_hrl  = mask_hrl_sraster$array[,,1]
+          #checking if the intersection has information, otherwise return NULL
+          if(all(is.na( mask_hrl))){
+             return(NULL)
+          }
+          else if(length( which(!is.na(mask_hrl))) < 20){
+             return(NULL)
+          }
+          else{
+            result_clip_hrl = clip_sraster(result, mask = mask_hrl , type ="No rule")
+            #mask cluster
+            mask_cluster = kmeans_sraster(result_clip_hrl)
+            result_clip_cluster = clip_sraster(result_clip_hrl, mask = mask_cluster, type)
+            #
+            if(is.null(result_clip_cluster)){
+              return(NULL)
+            }
+            else{
+              return(as.data.frame(result_clip_cluster))            
+            }
+          }
+}
+```
+
+
+## Cluster analysis
+
+
+```{r }
+#query 2  eval= FALSE 
+legend_class_q2 = legend_class_q1[index,]
+
+list_shapes = split(legend_class_q2,legend_class_q2$OBJECTI)
+
+result_list_majrule = lapply(list_shapes, workflow, paths_images, type ="Majority rule")
+
+result_df_majrule = do.call("rbind",result_list_majrule)
+```
+
+
+
+```{r }
+#eval= FALSE
+st_crs(result_df_majrule)<-st_crs(legend_class)
+st_write(result_df_majrule, paste0("output_",class_analysis,"_majrule.csv"), layer_options = "GEOMETRY=AS_XY")
+```
+
+
+
+#saving pixel values without processing
+
+
+```{r }
+
+indeces_polygons = unique(result_df_majrule2$Object)
+
+legend_class_q3 = legend_class_q2[legend_class_q2$OBJECTI %in% indeces_polygons,]
+
+list_shapes = split(legend_class_q3,legend_class_q3$OBJECTI)
+
+result_list_nr = lapply(list_shapes, workflow, paths_images, type ="No rule")
+result_df_nr = do.call("rbind",result_list_nr)
+st_crs(result_df_nr)<-st_crs(legend_class)
+st_write(result_df_nr, paste0("output_",class_analysis,"_norule.csv"), layer_options = "GEOMETRY=AS_XY")
+```
+
+
+
+
+```{r }
+#rm(list=ls())
+#gc()
+```
+
+
