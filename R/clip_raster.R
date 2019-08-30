@@ -42,48 +42,64 @@ geotransform <- function(geo_info,shape){
 #For this example we call only one image
 library(rgdal)
 
-read_raster <-function(files_raster, xyoffs, reg, r_shape_array, shape){
-  list_bands = list()
-  n_img = length(files_raster)
-  pb = txtProgressBar(min = 1, max = n_img,style = 3)
-  for(j in 1:length(files_raster)){
-    geo_info = rgdal::GDALinfo(files_raster[j],returnStats = FALSE)
-    datasource = rgdal::GDAL.open(files_raster[j])
-    #This part needs to be improved
+function_time_name <- function(x){
+  path_split = unlist(strsplit(x,'\\',fixed=TRUE))
+  name_tif = path_split[length(path_split)]
+  args_tiff = unlist(strsplit(name_tif,'-',fixed=TRUE))[1]
+  date_split_tiff = unlist(strsplit(args_tiff,'_',fixed=TRUE))
+  date_tiff = date_split_tiff[length(date_split_tiff)]
+  year = substr(date_tiff,1,4)
+  month = substr(date_tiff,5,6)
+  day = substr(date_tiff,7,8)
+  d <- as.Date(paste0(year,"-",month,"-",day), format="%Y-%m-%d")
+  return(d)
+}
 
+
+#================================
+#reading raster
+#================================
+
+read_raster <-function(files_raster, xyoffs, reg, r_shape_array, shape,names_bands){
+  # files_raster: vector with raster paths
+  list_composites = list()
+  n_img = length(files_raster)
+  l = 1
+  pb = txtProgressBar(min = 1, max = n_img,style = 3)
+  time_names_img = NULL
+  for(j in files_raster){
+    geo_info = rgdal::GDALinfo(j,returnStats = FALSE)
+    datasource = rgdal::GDAL.open(j)
+    list_bands = list()
     for(i in 1:geo_info[3]){
-      band = paste0('IMG_',j,"_B_",i)
+      band = names_bands[i]
       clip_extent = rgdal::getRasterData(datasource, offset = xyoffs, region.dim = reg, band=i)
-      if(i == 3){
-        red_band = clip_extent * r_shape_array
-      }
-      else if(i == 7){
-        near_band = clip_extent * r_shape_array
-      }
       list_bands[[band]] = clip_extent * r_shape_array
     }
-    #NDVI
-    ndvi = (near_band - red_band)/(near_band + red_band)
-    name_ndvi = paste0("NDVI_",j)
-    list_bands[[name_ndvi]] = ndvi
+    time_name_img = as.character(function_time_name(j))
+    list_composites[[time_name_img]] = array(unlist(list_bands),dim = c(reg[2], reg[1] , length(list_bands)))
+    time_names_img = c(time_names_img,time_name_img)
     rgdal::closeDataset(datasource)
-    red_band = 0
-    near_band = 0
     Sys.sleep(0.1)
-    setTxtProgressBar(pb,j)
+    setTxtProgressBar(pb,l)
+    l = l + 1
   }
-  multiarray = array(unlist(list_bands),dim = c(reg[2], reg[1] , length(list_bands)))
   result = list()
-  result[["object"]] = shape$OBJECTID
-  result[["bands"]] <- names(list_bands)
-  result[["array"]] <- multiarray
+  result[["object"]] = shape$OBJECTI
+  result[["bands"]] <- names_bands
+  result[["data"]] <- list_composites
+  result[["time"]] <- time_names_img
+  result[["nrows"]] <- reg[1]
+  result[["ncols"]] <- reg[2]
   return(result)
 }
 
 
 #crating sraster function
-as_sraster <- function(shape,files_raster){
-  cat(paste0("\tShape ",shape$OBJECTID),"\n")
+as_sraster <- function(shape,files_raster,names_bands){
+
+  #shape
+  cat(paste0("\tShape ",shape$OBJECTI),"\n")
   geo_info = rgdal::GDALinfo(files_raster[1],returnStats = FALSE)
   coord_pixel = geotransform(geo_info, shape)
   xyoffs = coord_pixel$offs
@@ -98,7 +114,7 @@ as_sraster <- function(shape,files_raster){
   r_shape$field[r_shape$field == 0] = NA
   r_shape_array = r_shape$field
 
-  result <- read_raster(files_raster, xyoffs, reg, r_shape_array,shape)
+  result <- read_raster(files_raster, xyoffs, reg, r_shape_array,shape, names_bands)
 
   #Coordinates
 
@@ -112,9 +128,8 @@ as_sraster <- function(shape,files_raster){
   coord_x_matrix = array(rep(x_line, ncols),dim = c(ncols, nrows))
   coord_y_matrix = t(array(rep(y_line, nrows),dim = c(nrows, ncols)))
 
-  coordinates = data.frame(x=c(coord_x_matrix), y=c(coord_y_matrix))
-  result$coordinates = coordinates
-  result$n_images = length(files_raster)
+  x_coordinates = data.frame(x=c(coord_x_matrix), y=c(coord_y_matrix))
+  result$coordinates = x_coordinates
   result$label = as.character(shape$Legend)
 
   class(result) <- "sraster"
@@ -127,11 +142,163 @@ print.sraster <-
     cat("class:    sraster", "\n")
     cat("Object: ", x$object , "\n")
     cat("Label: ", x$label , "\n")
-    cat("space dimension: nrows: ", dim(x$array)[1], " nccols: ", dim(x$array)[2],"\n")
-    cat("Number of layers: ", dim(x$array)[3],"\n")
-    cat("Number of images: ", x$n_images,"\n")
+    cat("space dimension: nrows: ", x$nrows, " nccols: ", x$ncols,"\n")
+    cat("Number of images: ", length(x$time) ,"\n")
+    cat("Number of bands: ", length(x$bands),"\n")
     cat("Coord Origin x: ", x$coordinates[1,1]," and y: ", x$coordinates[1,2]  ,"\n")
   }
+
+
+#===============================
+#Clip sraster
+#===============================
+
+clip_sraster = function(x, mask, type, threshold = 0.5 ){
+  if(type == 'Majority rule'){
+    largest_cluster = order(table(mask),decreasing = TRUE)[1]
+    mask[mask != largest_cluster] <- NA
+    mask[mask == largest_cluster] <- 1
+  }
+  else if(type == 'No rule' ){
+    mask[!is.na(mask)] <- 1
+  }
+  else if(type == 'rule_ndvi_water'){
+    bands_ndvi = grep("NDVI",x$bands)
+    cluster_n = as.numeric(names(table(mask)))
+    median_ndvi = c(1:length(cluster_n))
+    median_ndvi[]<-0
+    for(i in cluster_n){
+      list_ndvi = list()
+      for(j in bands_ndvi){
+          bndvi = x$array[,,j]
+          list_ndvi[[j]] = c(bndvi[mask==i])
+      }
+      median_ndvi[i] = median(unlist(list_ndvi),na.rm = TRUE)
+    }
+    if(any(median_ndvi<0.2)){
+      lowest_ndvi = order(median_ndvi)[1]
+      mask[mask != lowest_ndvi] <- NA
+      mask[mask == lowest_ndvi] <- 1
+    }
+    else{
+      return(NULL)
+    }
+
+  }
+  else if(type == 'rule_ndvi_urban'){
+    bands_ndvi = grep("NDVI",x$bands)
+    cluster_n = as.numeric(names(table(mask)))
+    median_ndvi = c(1:length(cluster_n))
+    median_ndvi[]<-0
+    for(i in cluster_n){
+      list_ndvi = list()
+      for(j in bands_ndvi){
+        bndvi = x$array[,,j]
+        list_ndvi[[j]] = c(bndvi[mask==i])
+      }
+      median_ndvi[i] = median(unlist(list_ndvi),na.rm = TRUE)
+    }
+    #decision rule
+    if(any(median_ndvi>=0.1 & median_ndvi<0.4)){
+      ind_cluster = which(median_ndvi>=0.1 & median_ndvi<0.4)
+      median_ndvi_query = median_ndvi[ind_cluster]
+      lowest_ndvi = order(median_ndvi_query)[1]
+      mask[mask != ind_cluster[lowest_ndvi]] <- NA
+      mask[mask == ind_cluster[lowest_ndvi]] <- 1
+    }
+    else
+    {
+      return(NULL)
+    }
+  }
+  else if(type == 'rule_ndvi_wood'){
+    bands_ndvi = grep("NDVI",x$bands)
+    cluster_n = as.numeric(names(table(mask)))
+    median_ndvi = c(1:length(cluster_n))
+    median_ndvi[]<-0
+    for(i in cluster_n){
+      list_ndvi = list()
+      for(j in bands_ndvi){
+        bndvi = x$array[,,j]
+        list_ndvi[[j]] = c(bndvi[mask==i])
+      }
+      median_ndvi[i] = median(unlist(list_ndvi),na.rm = TRUE)
+    }
+    #decision rule
+    if(any(median_ndvi>threshold)){
+      ind_cluster = which.max(median_ndvi)
+      mask[mask != cluster_n[ind_cluster]] <- NA
+      mask[mask == cluster_n[ind_cluster]] <- 1
+    }else
+    {
+      return(NULL)
+    }
+  }
+  else{
+    stop("provide one of the methods")
+  }
+
+  func_mask <- function(y, mask) list(y * mask)
+
+  for(tr in x$time)
+  {
+    array_clip_list = apply(x$data[[tr]], 3, func_mask,mask)
+    array_clip_list = lapply(array_clip_list, "[[", 1)
+    array_clip = array(unlist(array_clip_list),dim = dim(x$data[[tr]]))
+    x$data[[tr]] <- array_clip
+  }
+  return(x)
+}
+
+
+#===============================
+#as array
+#===============================
+
+as.array.sraster <-
+  function(x,...)
+  {
+    n_rows = x$nrows
+    n_cols = x$ncols
+    n_layers = length(x$time) * length(x$bands)
+    array_data = array(unlist(x$data), dim = c(n_cols, n_rows, n_layers))
+    return(array_data)
+  }
+
+#===============================
+#as data frame sf
+#===============================
+
+as.data.frame.sraster <-
+  function(x,...)
+  {
+    array_x = as.array(x)
+    data_2d = apply(array_x,3,convert_2d)
+    index_nonan = apply(data_2d,1,func_nan)
+
+    data_2d_nonan = data_2d[!index_nonan,]
+    coordxy = x$coordinates[!index_nonan,]
+    df_data_2d_nonan = data.frame(x$object, x$label,coordxy, matrix(data_2d_nonan,nrow = dim(coordxy)[1]))
+    #names
+    vector_names = NULL
+    for(i in x$time){
+      vector_name = lapply(x$bands,function(y,i){paste0(i,"-",y)}, i)
+      vector_names = c(vector_names, unlist(vector_name))
+    }
+
+    colnames(df_data_2d_nonan) <- c("Object","Label","x","y",vector_names)
+
+    df_spatial = st_as_sf(df_data_2d_nonan, coords = c("x","y"))
+    return(df_spatial)
+  }
+
+
+
+funct_plot<- function(x){
+  a = apply(x,1,rev)
+  b = apply(a,2,rev)
+  return(raster(b))
+}
 
 #===============================
 #Clustering
@@ -150,7 +317,7 @@ library(fpc)
 kmeans_sraster <-
   function(x,...)
   {
-    array_sr = x$array
+    array_sr = as.array(x)
 
     data_2d = apply(array_sr,3,convert_2d)
 
@@ -178,95 +345,91 @@ kmeans_sraster <-
 
 
 
-#===============================
-#Clip sraster
-#===============================
 
-clip_sraster = function(x, mask, type){
-  if(type == 'Majority rule'){
-    largest_cluster = order(table(mask),decreasing = TRUE)[1]
-    mask[mask != largest_cluster] <- NA
-    mask[mask == largest_cluster] <- 1
-  }
-  else if(type == 'rule_ndvi_water'){
-    bands_ndvi = grep("NDVI",x$bands)
-    cluster_n = as.numeric(names(table(mask)))
-    median_ndvi = c(1:length(cluster_n))
-    median_ndvi[]<-0
-    for(i in cluster_n){
-      list_ndvi = list()
-      for(j in bands_ndvi){
-          bndvi = x$array[,,j]
-          list_ndvi[[j]] = c(bndvi[mask==i])
-      }
-      median_ndvi[i] = median(unlist(list_ndvi),na.rm = TRUE)
-    }
-    lowest_ndvi = order(median_ndvi)[1]
-    mask[mask != lowest_ndvi] <- NA
-    mask[mask == lowest_ndvi] <- 1
-  }
-  else if(type == 'No rule' ){
-    mask[!is.na(mask)] <- 1
-  }
-  else if(type == 'rule_ndvi_urban'){
-    bands_ndvi = grep("NDVI",x$bands)
-    cluster_n = as.numeric(names(table(mask)))
-    median_ndvi = c(1:length(cluster_n))
-    median_ndvi[]<-0
-    for(i in cluster_n){
-      list_ndvi = list()
-      for(j in bands_ndvi){
-        bndvi = x$array[,,j]
-        list_ndvi[[j]] = c(bndvi[mask==i])
-      }
-      median_ndvi[i] = median(unlist(list_ndvi),na.rm = TRUE)
-    }
-    #decision rule
-    ind_cluster = which(median_ndvi>=0.1 & median_ndvi<0.4)
-    median_ndvi_query = median_ndvi[ind_cluster]
-    lowest_ndvi = order(median_ndvi_query)[1]
-    mask[mask != ind_cluster[lowest_ndvi]] <- NA
-    mask[mask == ind_cluster[lowest_ndvi]] <- 1
-  }
-  else{
-    stop("provide one of the methods")
-  }
 
-  func_mask <- function(y, mask) list(y * mask)
-  array_clip_list = apply(x$array, 3, func_mask,mask)
-  array_clip_list = lapply(array_clip_list, "[[", 1)
-  array_clip = array(unlist(array_clip_list),dim = dim(x$array))
-  x$array <- array_clip
-  return(x)
+#=======================================
+#workflow_bhattacharyya
+#=======================================
+
+workflow_bhattacharyya = function(x,mean_a, cov_a){
+  mean_b = apply(x[,c(-1,-2)],2,mean_vector)
+  cov_b = cov(x[,c(-1,-2)],use = 'na.or.complete')
+  #Bhattacharyya distance between a and b distribution
+  dist_batha = bhattacharyya.dist(mean_a, mean_b, cov_a, cov_b)
+  name_polygon = x[1,1]
+  result_dist = c(name_polygon,dist_batha)
+  return(result_dist)
+}
+
+mean_vector = function(x) mean(x,na.rm=TRUE)
+
+b_distance <- function(y, prob){
+  #y data frame with the especral and temporal information
+  #prob percentage of information reteined into the analysis
+
+  copy_y = y
+  st_geometry(copy_y)<- NULL
+
+  #mean and covariance matrix for all the samples
+  mean_a = apply(copy_y[,c(-1,-2)],2,mean_vector)
+  cov_a = cov(copy_y[,c(-1,-2)],use = 'na.or.complete')
+
+  list_data_polygon = split(copy_y,copy_y$Object)
+
+  distances_bhattacharyya = lapply(list_data_polygon, workflow_bhattacharyya, mean_a, cov_a)
+
+  distance_bhattacharyya_df = do.call("rbind",distances_bhattacharyya)
+
+  q65 = quantile(distance_bhattacharyya_df[,2] ,probs = c(prob),na.rm = TRUE)
+
+  selected_polygon_names = distance_bhattacharyya_df[distance_bhattacharyya_df[,2]<=q65 &
+                                                       !is.na(distance_bhattacharyya_df[,2]),1]
+
+  result_df = y[y$Object %in% selected_polygon_names,]
+
+  return(result_df)
+
+}
+
+#====================================
+#stacking sraster objects
+#====================================
+
+stack <- function(x){
+  base_layer = x[[1]]
+
+  for(l in 1:(length(x)-1)){
+    new_layer = x[[l+1]]
+    stopifnot(class(base_layer) == 'sraster', class(new_layer) == 'sraster')
+    time_new_layer = new_layer$time
+    time_base_layer = base_layer$time
+    stopifnot(all(time_base_layer == time_new_layer))
+    n_rows = base_layer$nrows
+    n_cols = base_layer$ncols
+    n_bands_base_layer = length(base_layer$bands)
+    n_bands_new_layer = length(new_layer$bands)
+
+    #merging arrays
+    data_base_new = list()
+    for(k in time_base_layer){
+      vector_base_new = c(as.numeric(base_layer$data[[k]]),new_layer$data[[k]])
+      data_base_new[[k]] = array(vector_base_new, dim = c(n_cols,n_rows, n_bands_base_layer + n_bands_new_layer))
+    }
+
+    result[["object"]] = base_layer$object
+    result[["bands"]] <- c(base_layer$bands, new_layer$bands)
+    result[["data"]] <- data_base_new
+    result[["time"]] <- c(base_layer$time)
+    result[["nrows"]] <- base_layer$nrows
+    result[["ncols"]] <- base_layer$ncols
+    result[["coordinates"]] = base_layer$coordinates
+    class(result) <- "sraster"
+    base_layer = result
+    }
+  return(base_layer)
 }
 
 
 
 
-#===============================
-#as data frame sf
-#===============================
 
-as.data.frame.sraster <-
-  function(x,...)
-  {
-    array_x = x$array
-    data_2d = apply(array_x,3,convert_2d)
-    index_nonan = apply(data_2d,1,func_nan)
-
-    data_2d_nonan = data_2d[!index_nonan,]
-    coordxy = x$coordinates[!index_nonan,]
-    df_data_2d_nonan = data.frame(x$object, x$label,coordxy, matrix(data_2d_nonan,nrow = dim(coordxy)[1]))
-    colnames(df_data_2d_nonan) <- c("Object","Label","x","y",x$bands)
-
-    df_spatial = st_as_sf(df_data_2d_nonan, coords = c("x","y"))
-    return(df_spatial)
-  }
-
-
-
-funct_plot<- function(x){
-  a = apply(x,1,rev)
-  b = apply(a,2,rev)
-  return(raster(b))
-}
