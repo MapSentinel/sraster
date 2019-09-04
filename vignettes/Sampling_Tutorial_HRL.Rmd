@@ -37,7 +37,7 @@ file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
 table(legend$Legend)
 
-class_analysis = 'conifers'
+class_analysis = 'broadleaf'
 
 legend_class = legend[which(legend$Legend == class_analysis),]
 rm(legend)
@@ -50,7 +50,7 @@ To transform all HRL mask to polygon vector may represent a really demanding com
 ### raster to points
 
 ```{r}
-file_mask = c('C:\\IPSTERS\\sraster\\images\\Mask_coniferus.tif')
+file_mask = c('C:\\IPSTERS\\sraster\\images\\Mask_broadleaf.tif')
 hrl = raster(file_mask)
 hrl_points = st_as_sf(rasterToPoints(hrl,spatial = TRUE))
 ```
@@ -135,55 +135,122 @@ paths_images = unlist(lapply(list_images,join_path,images_folder))
 We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
 
 ```{r }
-shape = legend_class_q1[1,] 
+shape = legend_class_q1[1,]
 plot(st_geometry(shape),border='red')
 ```
 
 ```{r }
-result = as_sraster(shape,paths_images)
-result
-plot(funct_plot((result$array)[,,11]))
+names_bands = c('B2','B3', 'B4', 'B5', 'B6', 'B7','B8','B8A', 'B11','B12')
+result = as_sraster(shape,paths_images,names_bands)
+plot(funct_plot((result$data[["2017-10-02"]][,,1])))
+```
+## Adding NDVI and converting to sraster object
+
+```{r }
+list_images_ndvi = c("S2A_L2A_20171002-113001_T29SND_NDVI.tif",
+                 "S2A_L2A_20171221-112810_T29SND_NDVI.tif",
+                 "S2A_L2A_20180321-112321_T29SND_NDVI.tif",
+                 "S2A_L2A_20180619-112602_T29SND_NDVI.tif",
+                 "S2A_L2A_20180729-112845_T29SND_NDVI.tif",
+                 "S2A_L2A_20180818-112627_T29SND_NDVI.tif",
+                 "S2A_L2A_20180927-112959_T29SND_NDVI.tif")
+
+paths_images_ndvi = unlist(lapply(list_images_ndvi,join_path,images_folder))
+
+result_ndvi = as_sraster(shape, paths_images_ndvi, names_bands = c("NDVI"))
+plot(funct_plot((result_ndvi$data[["2017-10-02"]][,,1])))
+#st_write(as.data.frame(result_ndvi),"output_ndvi.csv",layer_options = "GEOMETRY=AS_XY")
+```
+
+
+## Adding NDBI and converting to sraster object
+
+```{r }
+list_images_NDBI = c("S2A_L2A_20171002-113001_T29SND_NDBI.tif",
+                 "S2A_L2A_20171221-112810_T29SND_NDBI.tif",
+                 "S2A_L2A_20180321-112321_T29SND_NDBI.tif",
+                 "S2A_L2A_20180619-112602_T29SND_NDBI.tif",
+                 "S2A_L2A_20180729-112845_T29SND_NDBI.tif",
+                 "S2A_L2A_20180818-112627_T29SND_NDBI.tif",
+                 "S2A_L2A_20180927-112959_T29SND_NDBI.tif")
+
+paths_images_NDBI = unlist(lapply(list_images_NDBI,join_path,images_folder))
+
+result_NDBI = as_sraster(shape, paths_images_NDBI, names_bands = c("NDBI"))
+plot(funct_plot((result_NDBI$data[["2017-10-02"]][,,1])))
+result_NDBI
+#st_write(as.data.frame(result_NDBI),"output_ndbi.csv",layer_options = "GEOMETRY=AS_XY")
+```
+
+
+## Adding NDMIR and converting to sraster object
+
+
+```{r }
+list_images_NDMIR = c("S2A_L2A_20171002-113001_T29SND_NDMIR.tif",
+                 "S2A_L2A_20171221-112810_T29SND_NDMIR.tif",
+                 "S2A_L2A_20180321-112321_T29SND_NDMIR.tif",
+                 "S2A_L2A_20180619-112602_T29SND_NDMIR.tif",
+                 "S2A_L2A_20180729-112845_T29SND_NDMIR.tif",
+                 "S2A_L2A_20180818-112627_T29SND_NDMIR.tif",
+                 "S2A_L2A_20180927-112959_T29SND_NDMIR.tif")
+
+paths_images_NDMIR = unlist(lapply(list_images_NDMIR,join_path,images_folder))
+
+result_NDMIR = as_sraster(shape, paths_images_NDMIR, names_bands = c("NDMIR"))
+plot(funct_plot((result_NDMIR$data[["2017-10-02"]][,,1])))
+result_NDMIR
+#st_write(as.data.frame(result_NDMIR),"output_NDMIR.csv",layer_options = "GEOMETRY=AS_XY")
+```
+
+## stacking layers
+
+```{r }
+result_stack = stack(list(result, result_ndvi,result_NDBI, result_NDMIR))
+result_stack$bands
+#st_write(as.data.frame(result_stack),"output_stack.csv",layer_options = "GEOMETRY=AS_XY")
 ```
 
 
 ### Coniferos Mask HRL
 
 ```{r }
-mask_hrl_sraster = as_sraster(shape,file_mask,ndvi = FALSE)
-mask_hrl  = mask_hrl_sraster$array[,,1] 
-mask_hrl_plot = funct_plot(mask_hrl)
-plot(mask_hrl_plot)
+mask_hrl_sraster = as_sraster(shape, file_mask, names_bands = c("mask"))
+mask_hrl  = mask_hrl_sraster$data[[1]][,,1]
+plot(funct_plot((mask_hrl)))
 ```
 
 ### Extracting spectral temporal information using HRL boundaries
 
 ```{r }
-result_clip_hrl = clip_sraster(result, mask = mask_hrl , type ="No rule")
-plot(funct_plot((result_clip_hrl$array)[,,11]))
+result_clip = clip_sraster(result_stack, mask = mask_hrl, type = "No rule")
+plot(funct_plot((result_clip$data[["2017-10-02"]][,,11])))
 ```
 
-### K means
+## K means
 
-Internally the number of cluster is defined by the Calinski-Harabasz index. As result, we have 2 clusters
+Internally the number of cluster is defined by the Calinski-Harabasz index. As result, we have n clusters
 
 ```{r }
-mask_cluster = kmeans_sraster(result_clip_hrl)
+cluster_matrix = kmeans_sraster(result_clip)
 
-mask_cluster_plot = funct_plot(mask_cluster)
-mask_cluster_plot = as.factor(mask_cluster_plot)
-rat <- levels(mask_cluster_plot)[[1]]
-name_clusters = names(table(mask_cluster))
+mask_raster = funct_plot(cluster_matrix)
+mask_raster = as.factor(mask_raster)
+rat <- levels(mask_raster)[[1]]
+name_clusters = names(table(cluster_matrix))
 rat[["cluster"]] <- name_clusters
-levels(mask_cluster_plot) <- rat
+levels(mask_raster) <- rat
 
-levelplot(mask_cluster_plot, col.regions=c("red","blue","yellow","green","black","orange"))
+levelplot(mask_raster,col.regions=c("red","blue","yellow","green","black","orange"))
 ```
+
 
 ### Extracting spectral temporal information with Majority rule
 
 ```{r }
-result_clip_cluster = clip_sraster(result_clip_hrl, mask = mask_cluster, type ="Majority rule")
-plot(funct_plot((result_clip_cluster$array)[,,11]))
+result_clip_cluster = clip_sraster(result_clip, mask = cluster_matrix, type ="Majority rule")
+plot(funct_plot((result_clip_cluster$data[["2017-10-02"]][,,11])))
+#st_write(as.data.frame(result_clip),"output_clip.csv",layer_options = "GEOMETRY=AS_XY")
 ```
 
 # Working with more polygons
@@ -191,7 +258,7 @@ plot(funct_plot((result_clip_cluster$array)[,,11]))
 Well, this workflow also attempts to construct a database with the spectral-temporal information that must be part of the trainig and validation modelling. So here we want to evaluate haw fast we can retrieve pseudotraining and put it a file that later on we will use for modelling. 
 
 ```{r }
-n_samples = 60
+n_samples = 40
 set.seed(123)   #setting same random selection for testing
 index = sample(1:dim(legend_class_q1)[1], n_samples,replace = FALSE)
 ```
@@ -201,10 +268,15 @@ The following script contains the workflow that generalize the process done with
 
 ```{r}
 workflow <- function(shape, paths_images, type){
-          result = as_sraster(shape,paths_images)
+          result = as_sraster(shape,paths_images,names_bands=c("B2","B3","B4","B5","B6","B7","B8","B8A","B11","B12"))
+          result_ndvi = as_sraster(shape, paths_images_ndvi, names_bands = c("NDVI"))
+          result_NDBI = as_sraster(shape, paths_images_NDBI, names_bands = c("NDBI"))
+          result_NDMIR = as_sraster(shape, paths_images_NDMIR, names_bands = c("NDMIR"))
+          result_stack = stack(list(result, result_ndvi,result_NDBI, result_NDMIR))
           #mask HRL
-          mask_hrl_sraster = as_sraster(shape,file_mask,ndvi = FALSE)
-          mask_hrl  = mask_hrl_sraster$array[,,1]
+          mask_hrl_sraster = as_sraster(shape, file_mask, names_bands = c("mask"))
+          mask_hrl  = mask_hrl_sraster$data[[1]][,,1]
+          
           #checking if the intersection has information, otherwise return NULL
           if(all(is.na( mask_hrl))){
              return(NULL)
@@ -213,15 +285,14 @@ workflow <- function(shape, paths_images, type){
              return(NULL)
           }
           else{
-            result_clip_hrl = clip_sraster(result, mask = mask_hrl , type ="No rule")
+            result_clip = clip_sraster(result_stack, mask = mask_hrl, type = "No rule")
             #mask cluster
-            mask_cluster = kmeans_sraster(result_clip_hrl)
-            result_clip_cluster = clip_sraster(result_clip_hrl, mask = mask_cluster, type)
-            #
-            if(is.null(result_clip_cluster)){
+            cluster_matrix = kmeans_sraster(result_clip)
+            if(all(is.na(cluster_matrix))){
               return(NULL)
             }
             else{
+              result_clip_cluster = clip_sraster(result_clip, mask = cluster_matrix, type)
               return(as.data.frame(result_clip_cluster))            
             }
           }
@@ -244,13 +315,64 @@ result_df_majrule = do.call("rbind",result_list_majrule)
 ```
 
 
+## Plot signal
+
+```{r }
+library(reshape2)
+library(ggplot2)
+index_indvi = grep("NDVI",colnames(result_df_majrule))
+
+result_df_majrule_ndvi = result_df_majrule[,c(1,index_indvi)]
+
+st_geometry(result_df_majrule_ndvi) = NULL
+
+result_aggregate_time = aggregate(result_df_majrule_ndvi, by = list(result_df_majrule_ndvi$Object), FUN = median, na.rm =TRUE)
+resultmelt <- melt(result_aggregate_time[,-1], id.vars = "Object")
+#removing ndvi text
+resultmelt$variable <- as.Date(substr(resultmelt[,c("variable")], 1, 10))
+resultmelt$Object <- as.factor(resultmelt$Object)
+
+#ggplot
+p1 <- ggplot(resultmelt, aes(variable, value, group = Object)) + 
+  geom_line(color="red") + theme(legend.position="top")
+print(p1)
+```
+
+
+## Bhattacharyya distance
+
+```{r }
+y = result_df_majrule[,c(1,index_indvi)]
+st_geometry(y) <- NULL
+index_preserve = b_distance(y, prob= 0.80)
+result_df_majrule2 = result_df_majrule[result_df_majrule$Object %in% index_preserve, ]
+
+#graphic 2
+resultmelt$Type = "Outlier"
+resultmelt[resultmelt$Object %in% index_preserve,c("Type")] = "Data"
+
+#ggplot
+p1 <- ggplot(resultmelt, aes(variable, value, group = Object)) + 
+  geom_line(aes(color=Type)) + theme(legend.position="top") +
+  scale_linetype_manual(values=c("twodash", "dotted"))+
+  scale_size_manual(values=c(4, 4))
+  
+print(p1)
+
+```
+
+
+
+To save the results
 
 ```{r }
 #eval= FALSE
 st_crs(result_df_majrule)<-st_crs(legend_class)
+st_crs(result_df_majrule2)<-st_crs(legend_class)
 st_write(result_df_majrule, paste0("output_",class_analysis,"_majrule.csv"), layer_options = "GEOMETRY=AS_XY")
+st_write(result_df_majrule2, paste0("output_",class_analysis,"_majrule_bdist.csv"), layer_options = "GEOMETRY=AS_XY")
+#st_write(result_df_ndvirule2, paste0("output_",class_analysis,"_ndvirule.csv"), layer_options = "GEOMETRY=AS_XY")
 ```
-
 
 
 #saving pixel values without processing
@@ -258,19 +380,31 @@ st_write(result_df_majrule, paste0("output_",class_analysis,"_majrule.csv"), lay
 
 ```{r }
 
-indeces_polygons = unique(result_df_majrule2$Object)
+workflow2 <- function(shape, paths_images, type){
+          result = as_sraster(shape,paths_images,names_bands=c("B2","B3","B4","B5","B6","B7","B8","B8A","B11","B12"))
+          result_ndvi = as_sraster(shape, paths_images_ndvi, names_bands = c("NDVI"))
+          result_NDBI = as_sraster(shape, paths_images_NDBI, names_bands = c("NDBI"))
+          result_NDMIR = as_sraster(shape, paths_images_NDMIR, names_bands = c("NDMIR"))
+          result_stack = stack(list(result, result_ndvi,result_NDBI, result_NDMIR))
+          return(as.data.frame(result_stack))
+          }
+```
 
+
+
+
+```{r }
+
+indeces_polygons = unique(result_df_majrule$Object)
 legend_class_q3 = legend_class_q2[legend_class_q2$OBJECTI %in% indeces_polygons,]
 
 list_shapes = split(legend_class_q3,legend_class_q3$OBJECTI)
 
-result_list_nr = lapply(list_shapes, workflow, paths_images, type ="No rule")
+result_list_nr = lapply(list_shapes, workflow2, paths_images, type ="No rule")
 result_df_nr = do.call("rbind",result_list_nr)
 st_crs(result_df_nr)<-st_crs(legend_class)
 st_write(result_df_nr, paste0("output_",class_analysis,"_norule.csv"), layer_options = "GEOMETRY=AS_XY")
 ```
-
-
 
 
 ```{r }

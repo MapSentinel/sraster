@@ -45,7 +45,7 @@ file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
 table(legend$Legend)
 
-class_analysis = 'shrubland'
+class_analysis = 'wetland'
 
 legend_class = legend[which(legend$Legend == class_analysis),]
 rm(legend)
@@ -54,14 +54,16 @@ rm(legend)
 
 
 ```{r}
+library(units)
 areas_poly = st_area(legend_class)
 boxplot(areas_poly,col = "bisque")
 
 quantile(areas_poly,probs=c(0.25,0.5,0.65,0.75,1))
-q25 = quantile(areas_poly,probs=c(0.25))
-q75 = quantile(areas_poly,probs=c(0.75))
+lim_max = quantile(areas_poly,probs=c(0.45))
+lim_min = 10000   # Minimun mapping unit
+units(lim_min) <- as_units("m^2")
 
-areas_poly_limit = areas_poly[areas_poly >= q25 & areas_poly < q75]
+areas_poly_limit = areas_poly[areas_poly >= lim_min & areas_poly < lim_max]
 
 boxplot(areas_poly_limit,col = "bisque")
 
@@ -72,7 +74,7 @@ cat("Number of polygons: ", length(areas_poly_limit))
 ## Query based on area
 
 ```{r}
-legend_class_q1 = legend_class[which(areas_poly >= q25 & areas_poly < q75),]
+legend_class_q1 = legend_class[which(areas_poly >= lim_min & areas_poly < lim_max),]
 #query 1: by area
 legend_class_buffer_q1 = st_buffer(legend_class_q1,-20)
 ```
@@ -110,8 +112,8 @@ paths_images = unlist(lapply(list_images,join_path,images_folder))
 We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
 
 ```{r }
-shape = legend_class_q1[1,]  
-shape_buffer = legend_class_buffer_q1[1,]
+shape = legend_class_q1[3,]  #16596
+shape_buffer = legend_class_buffer_q1[3,]
 
 plot(st_geometry(shape),border='red')
 plot(st_geometry(shape_buffer), col = 'blue', add=T)
@@ -242,7 +244,7 @@ This example covers only water. I want only call 20 polygons for this example
 #=========================
 #Goal : stratified random selection of traing samples at level of polygon, (queriying only one class)
 
-n_samples = 5
+n_samples = 31
 set.seed(123)   #setting same random selection for testing
 index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
 ```
@@ -257,13 +259,16 @@ workflow <- function(shape, paths_images,type){
           result_NDBI = as_sraster(shape, paths_images_NDBI, names_bands = c("NDBI"))
           result_NDMIR = as_sraster(shape, paths_images_NDMIR, names_bands = c("NDMIR"))
           result_stack = stack(list(result, result_ndvi,result_NDBI, result_NDMIR))
-          cluster_matrix = kmeans_sraster(result_stack)
-          result_clip = clip_sraster(result_stack, mask = cluster_matrix, type)
-          if(is.null(result_clip)){
-            return(NULL)
-          }
-          else{
-            return(as.data.frame(result_clip))            
+          
+          if(length(which(!is.na(result_stack$data[[1]][,,1]))) >=  25){
+              cluster_matrix = kmeans_sraster(result_stack)
+              result_clip = clip_sraster(result_stack, mask = cluster_matrix, type)
+              if(is.null(result_clip)){
+                  return(NULL)
+              }
+              else{
+                  return(as.data.frame(result_clip))            
+              }
           }
 }
 ```
@@ -274,7 +279,11 @@ workflow <- function(shape, paths_images,type){
 
 ```{r }
 #query 2  eval= FALSE 
+
 legend_class_buffer_q2 = legend_class_buffer_q1[index,]
+
+#legend_class_buffer_q2 = legend_class_buffer_q2[!(legend_class_buffer_q2$OBJECTI %in% #c(91652,91678,91658,91659,91660)),]
+
 
 list_shapes = split(legend_class_buffer_q2,legend_class_buffer_q2$OBJECTI)
 
@@ -287,13 +296,64 @@ result_df_majrule = do.call("rbind",result_list_majrule)
 #result_df_ndvirule = do.call("rbind",result_list_ndvirule)
 ```
 
-## Bhattacharyya distance
 
+## Plot signal
 
 ```{r }
-#result_df_majrule2 = b_distance(result_df_majrule, prob= 0.65)
-#result_df_ndvirule2 = b_distance(result_df_ndvirule, prob= 0.65)
+library(reshape2)
+library(ggplot2)
+index_indvi = grep("NDVI",colnames(result_df_majrule))
+
+result_df_majrule_ndvi = result_df_majrule[,c(1,index_indvi)]
+
+st_geometry(result_df_majrule_ndvi) = NULL
+
+result_aggregate_time = aggregate(result_df_majrule_ndvi, by = list(result_df_majrule_ndvi$Object), FUN = median, na.rm =TRUE)
+resultmelt <- melt(result_aggregate_time[,-1], id.vars = "Object")
+#removing ndvi text
+resultmelt$variable <- as.Date(substr(resultmelt[,c("variable")], 1, 10))
+resultmelt$Object <- as.factor(resultmelt$Object)
+
+#ggplot
+p1 <- ggplot(resultmelt, aes(variable, value, group = Object)) + 
+  geom_line(color="red") + theme(legend.position="top")
+print(p1)
 ```
+
+
+## Bhattacharyya distance
+
+```{r }
+y = result_df_majrule[,c(1,index_indvi)]
+st_geometry(y) <- NULL
+index_preserve = b_distance(y, prob= 0.80)
+result_df_majrule2 = result_df_majrule[result_df_majrule$Object %in% index_preserve, ]
+
+#graphic 2
+resultmelt$Type = "Outlier"
+resultmelt[resultmelt$Object %in% index_preserve,c("Type")] = "Data"
+
+#ggplot
+p1 <- ggplot(resultmelt, aes(variable, value, group = Object)) + 
+  geom_line(aes(color=Type)) + theme(legend.position="top") +
+  scale_linetype_manual(values=c("twodash", "dotted"))+
+  scale_size_manual(values=c(4, 4))
+  
+print(p1)
+
+```
+
+```{r }
+#ggplot
+p1 <- ggplot(resultmelt[resultmelt$Type == 'Outlier',], aes(variable, value, group = Object)) + 
+  geom_line(aes(color=Type)) + theme(legend.position="top") +
+  scale_linetype_manual(values=c("twodash", "dotted")) +
+  scale_size_manual(values=c(4, 4))
+  
+print(p1)
+
+```
+
 
 
 To save the results
@@ -301,8 +361,9 @@ To save the results
 ```{r }
 #eval= FALSE
 st_crs(result_df_majrule)<-st_crs(legend_class)
-#st_crs(result_df_ndvirule2)<-st_crs(legend_class)
+st_crs(result_df_majrule2)<-st_crs(legend_class)
 st_write(result_df_majrule, paste0("output_",class_analysis,"_majrule.csv"), layer_options = "GEOMETRY=AS_XY")
+st_write(result_df_majrule2, paste0("output_",class_analysis,"_majrule_bdist.csv"), layer_options = "GEOMETRY=AS_XY")
 #st_write(result_df_ndvirule2, paste0("output_",class_analysis,"_ndvirule.csv"), layer_options = "GEOMETRY=AS_XY")
 ```
 
@@ -310,13 +371,6 @@ st_write(result_df_majrule, paste0("output_",class_analysis,"_majrule.csv"), lay
 
 ```{r }
 #eval= FALSE
-
-indeces_polygons = unique(result_df_majrule2$Object)
-
-legend_class_buffer_q3 = legend_class_buffer_q2[legend_class_buffer_q2$OBJECTI %in% indeces_polygons,]
-
-list_shapes = split(legend_class_buffer_q3,legend_class_buffer_q3$OBJECTI)
-
 result_list_nr = lapply(list_shapes, workflow, paths_images, type ="No rule")
 result_df_nr = do.call("rbind",result_list_nr)
 st_crs(result_df_nr)<-st_crs(legend_class)
@@ -332,8 +386,8 @@ st_write(result_df_nr, paste0("output_",class_analysis,"_norule.csv"), layer_opt
 #result_df_rndvi = do.call("rbind",result_list_rndvi)
 #st_crs(result_df_rndvi)<-st_crs(legend_class)
 #st_write(result_df_rndvi, paste0("output_",class_analysis,"_ndvirule.csv"), layer_options = "GEOMETRY=AS_XY")
-rm(list=ls())
-gc()
+#rm(list=ls())
+#gc()
 ```
 
 

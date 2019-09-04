@@ -1,0 +1,65 @@
+---
+title: "Tutorial_mask_HRL"
+author: "William Martinez"
+date: "26/08/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Intrduction
+
+This document
+
+
+```{r, message=FALSE, warning=FALSE}
+
+class_analysis = 'broadleaf'
+percentage_vegetation = 60
+
+#===============================
+#Example
+#===============================
+
+library(rgdal)
+library(sf)
+library(rasterVis)
+library(stars)
+library(raster)
+
+file_HRL_DLT = 'C:\\IPSTERS\\HRL2015\\DLT_2015\\DLT_2015.tif'
+file_HRL_TCD = 'C:\\IPSTERS\\HRL2015\\TCD_2015\\TCD_2015.tif'
+
+DS_HRL_DLT = raster(file_HRL_DLT)
+HRL_DLT = as.matrix(DS_HRL_DLT)
+
+DS_HRL_TCD = raster(file_HRL_TCD)
+HRL_TCD = as.matrix(DS_HRL_TCD)
+
+if(class_analysis == 'coniferus'){
+  HRL_DLT[HRL_DLT != 2] <- NA
+  HRL_DLT[HRL_DLT == 2] <- 1
+  } else if(class_analysis == 'broadleaf'){
+  HRL_DLT[HRL_DLT != 1] <- NA
+  HRL_DLT[HRL_DLT == 1] <- 1
+  }
+  
+#TCD
+HRL_TCD[HRL_TCD < percentage_vegetation] <- NA
+HRL_TCD[HRL_TCD >= percentage_vegetation] <- 1
+
+#Now let's to multiplicate both matrices
+mask = HRL_TCD * HRL_DLT
+
+image(mask)
+
+# Turn the matrix into a raster
+rast <- raster(mask)
+extent(rast) <- DS_HRL_DLT@extent
+# ... and assign a projection
+projection(rast) <- crs(DS_HRL_DLT)
+
+raster::writeRaster(rast,paste0("Mask_",class_analysis,".tif"))
+```
