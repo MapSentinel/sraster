@@ -28,9 +28,11 @@ I want to select 1000 samples per class. To do so also I will consider to keep t
 
 ```{r}
 
-result_stat = NULL
+stat_metrics = NULL
+overall_accuracy = NULL
 
-for(iter in 1:10){
+
+for(iter in 1:30){
   
 file_directory = 'C:\\IPSTERS\\sraster\\ins3\\sampling_3'
 list_files = lapply(list.files(file_directory),function(x){paste0(file_directory,"\\",x)})
@@ -43,6 +45,11 @@ sampling_strata <- function(file_x, nsamples, group_by ){
   n_total_samples = nrow(x)
   
   samples_strata = function(y,n_total_samples,nsamples){
+    if(n_total_samples < nsamples)
+    {
+      nsamples = n_total_samples
+      message("we have less samples that those expected")
+    }
     n_rows = nrow(y)
     perc_samples = n_rows/n_total_samples
     n_samples_class = round(nsamples * perc_samples)
@@ -99,8 +106,42 @@ remove_na_df = function(x){
 
 data_random2 = remove_na_df(data_random)
 
-train = data_random2[data_random2$type == "Training",-c(1,2,3,82)]
-test = data_random2[data_random2$type == "Test",-c(1,2,3,82)]
+#============================
+#adding more feaatures
+#============================
+names_bands = colnames(data_random2)
+ind_NDVI = grep("NDVI",names_bands)
+ind_NDBI = grep("NDBI",names_bands)
+ind_NDMIR = grep("NDMIR",names_bands)
+indeces = list(data_random2[,ind_NDVI],data_random2[,ind_NDBI],data_random2[,ind_NDMIR])
+indeces_names = c("NDVI","NDBI","NDMIR")
+
+statistic_mean = function(y, name_y) mean(y, na.rm=TRUE)
+statistic_min = function(y) min(y, na.rm=TRUE)
+statistic_max = function(y) max(y, na.rm=TRUE)
+statistic_var = function(y) var(y, na.rm=TRUE)
+statistic_q10 = function(y) quantile(y, probs = c(0.1), na.rm=TRUE)
+statistic_q25 = function(y) quantile(y, probs = c(0.25), na.rm=TRUE)
+statistic_q50 = function(y) quantile(y, probs = c(0.50), na.rm=TRUE)
+statistic_q75 = function(y) quantile(y, probs = c(0.75), na.rm=TRUE)
+statistic_q90 = function(y) quantile(y, probs = c(0.90), na.rm=TRUE)
+
+statistic = list(statistic_mean, statistic_min, statistic_max, statistic_var, statistic_q10, statistic_q25, statistic_q50, statistic_q75, statistic_q90)
+statistic_names = c("mean","min","max","var","q10","q25","q50","q75","q90")
+output = NULL
+for(j in 1:length(statistic)){
+  statistic_w = lapply(indeces, function(x) apply(x,1,statistic[[j]]))
+  df_stat = do.call("cbind",statistic_w)
+  colnames(df_stat)<- paste0(indeces_names, statistic_names[j])
+  output = cbind(output,df_stat)
+}
+output_df = as.data.frame(output)
+#============================
+
+data_random3 = cbind(data_random2, output_df)
+
+train = data_random2[data_random3$type == "Training",-c(1,2,3,96)]
+test = data_random2[data_random3$type == "Test",-c(1,2,3,96)]
 
 #===============================
 #Modelling
@@ -116,15 +157,15 @@ print(model_rf)
 library(caret)
 pred_test = predict(model_rf, test)
 result_test = caret::confusionMatrix(pred_test, test$Label)
-result_test
 
 #===============================
 #Accuracies
 #===============================
 
-overall_accuracy = result_test$overall
-f1 = result_test$byClass[,7]
-result_stat = rbind(result_stat,c(overall_accuracy,f1))
+stat_metrics = rbind(stat_metrics, result_test$byClass[,c(1,3,7)])
+overall_accuracy = rbind(overall_accuracy,result_test$overall)
+
+
 cat("ready",iter)
 }
 
@@ -132,10 +173,9 @@ cat("ready",iter)
 
 
 ```{r}
-#write.csv(result_stat,"stat2.csv")
 #gc()
 #rm(list=ls())
-result_stat2 = result_stat[,8:18]
+result_stat2 = result_stat[,8:20]
 dim(result_stat2)
 
 df1 = apply(result_stat2,2, function(x){list(x)})
@@ -148,8 +188,9 @@ for(g in df2){
 
 names_result = colnames(result_stat2)
 
-df3 = data.frame(rep(names_result,rep(30,11)),result, Base = c('Base7'))
+df3 = data.frame(rep(names_result,rep(30,13)),result, Base = c('Base_3_d'))
 
 
-#write.csv(df3,"stat7.csv")
+#write.csv(result_stat,"stat_sampling3_5000s_total.csv")
+#write.csv(df3,"stat_sampling3_5000s_ggplot.csv")
 ```
