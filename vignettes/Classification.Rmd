@@ -32,7 +32,7 @@ stat_metrics = NULL
 overall_accuracy = NULL
 
 
-for(iter in 1:30){
+for(iter in 1:15){
   
 file_directory = 'C:\\IPSTERS\\sraster\\ins3\\sampling_3'
 list_files = lapply(list.files(file_directory),function(x){paste0(file_directory,"\\",x)})
