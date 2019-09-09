@@ -32,9 +32,9 @@ stat_metrics = NULL
 overall_accuracy = NULL
 
 
-for(iter in 1:30){
+for(iter in 1:2){
   
-file_directory = 'C:\\IPSTERS\\sraster\\ins3\\sampling_1'
+file_directory = 'C:\\IPSTERS\\sraster\\ins3\\sampling_3'
 list_files = lapply(list.files(file_directory),function(x){paste0(file_directory,"\\",x)})
 
 group_by = 'Object'
@@ -140,8 +140,8 @@ output_df = as.data.frame(output)
 
 data_random3 = cbind(data_random2, output_df)
 
-train = data_random2[data_random3$type == "Training",-c(1,2,3,96)]
-test = data_random2[data_random3$type == "Test",-c(1,2,3,96)]
+train = data_random3[data_random3$type == "Training",-c(1,2,3,96)]
+test = data_random3[data_random3$type == "Test",-c(1,2,3,96)]
 
 #===============================
 #Modelling
@@ -176,6 +176,6 @@ cat("ready",iter)
 #gc()
 #rm(list=ls())
 
-#write.csv(stat_metrics,"S1_stat_metrics_1000s_ndvi.csv")
-#write.csv(overall_accuracy ,"S1_overall_accuracy_1000s_ndvi.csv")
+#write.csv(stat_metrics,"S3_stat_metrics_3000s_ndvi.csv")
+#write.csv(overall_accuracy ,"S3_overall_accuracy_3000s_ndvi.csv")
 ```
