@@ -65,7 +65,7 @@ read_raster <-function(files_raster, xyoffs, reg, r_shape_array, shape,names_ban
   list_composites = list()
   n_img = length(files_raster)
   l = 1
-  pb = txtProgressBar(min = 1, max = n_img,style = 3)
+  pb = txtProgressBar(min = 0, max = n_img,style = 3)
   time_names_img = NULL
   for(j in files_raster){
     geo_info = rgdal::GDALinfo(j,returnStats = FALSE)
@@ -163,76 +163,34 @@ clip_sraster = function(x, mask, type, threshold = 0.5 ){
     mask[!is.na(mask)] <- 1
   }
   else if(type == 'rule_ndvi_water'){
-    bands_ndvi = grep("NDVI",x$bands)
-    cluster_n = as.numeric(names(table(mask)))
-    median_ndvi = c(1:length(cluster_n))
-    median_ndvi[]<-0
-    for(i in cluster_n){
-      list_ndvi = list()
-      for(j in bands_ndvi){
-          bndvi = x$array[,,j]
-          list_ndvi[[j]] = c(bndvi[mask==i])
-      }
-      median_ndvi[i] = median(unlist(list_ndvi),na.rm = TRUE)
+    col_ndvi = grep("NDVI",x$bands)
+    ndvi_layers = lapply(x$data,function(w,col_ndvi) w[,,col_ndvi],col_ndvi)
+    clusters_name = names(table(mask))
+    medians_clusters = NULL
+    for(i in clusters_name){
+      index = which(mask == i)
+      list_values_index = lapply(ndvi_layers, function(w, index) as.numeric(w)[index], index)
+      median_vector_index = median(unlist(list_values_index),na.rm=TRUE)
+      medians_clusters = c(medians_clusters, median_vector_index)
     }
-    if(any(median_ndvi<0.2)){
-      lowest_ndvi = order(median_ndvi)[1]
-      mask[mask != lowest_ndvi] <- NA
-      mask[mask == lowest_ndvi] <- 1
-    }
-    else{
-      return(NULL)
-    }
-
-  }
-  else if(type == 'rule_ndvi_urban'){
-    bands_ndvi = grep("NDVI",x$bands)
-    cluster_n = as.numeric(names(table(mask)))
-    median_ndvi = c(1:length(cluster_n))
-    median_ndvi[]<-0
-    for(i in cluster_n){
-      list_ndvi = list()
-      for(j in bands_ndvi){
-        bndvi = x$array[,,j]
-        list_ndvi[[j]] = c(bndvi[mask==i])
-      }
-      median_ndvi[i] = median(unlist(list_ndvi),na.rm = TRUE)
-    }
-    #decision rule
-    if(any(median_ndvi>=0.1 & median_ndvi<0.4)){
-      ind_cluster = which(median_ndvi>=0.1 & median_ndvi<0.4)
-      median_ndvi_query = median_ndvi[ind_cluster]
-      lowest_ndvi = order(median_ndvi_query)[1]
-      mask[mask != ind_cluster[lowest_ndvi]] <- NA
-      mask[mask == ind_cluster[lowest_ndvi]] <- 1
-    }
-    else
-    {
-      return(NULL)
-    }
+    query_cluster = order(medians_clusters,decreasing = FALSE)[1]
+    mask[mask != query_cluster] <- NA
+    mask[mask == query_cluster] <- 1
   }
   else if(type == 'rule_ndvi_wood'){
-    bands_ndvi = grep("NDVI",x$bands)
-    cluster_n = as.numeric(names(table(mask)))
-    median_ndvi = c(1:length(cluster_n))
-    median_ndvi[]<-0
-    for(i in cluster_n){
-      list_ndvi = list()
-      for(j in bands_ndvi){
-        bndvi = x$array[,,j]
-        list_ndvi[[j]] = c(bndvi[mask==i])
-      }
-      median_ndvi[i] = median(unlist(list_ndvi),na.rm = TRUE)
+    col_ndvi = grep("NDVI",x$bands)
+    ndvi_layers = lapply(x$data,function(w,col_ndvi) w[,,col_ndvi],col_ndvi)
+    clusters_name = names(table(mask))
+    medians_clusters = NULL
+    for(i in clusters_name){
+      index = which(mask == i)
+      list_values_index = lapply(ndvi_layers, function(w, index) as.numeric(w)[index], index)
+      median_vector_index = median(unlist(list_values_index),na.rm=TRUE)
+      medians_clusters = c(medians_clusters, median_vector_index)
     }
-    #decision rule
-    if(any(median_ndvi>threshold)){
-      ind_cluster = which.max(median_ndvi)
-      mask[mask != cluster_n[ind_cluster]] <- NA
-      mask[mask == cluster_n[ind_cluster]] <- 1
-    }else
-    {
-      return(NULL)
-    }
+    query_cluster = order(medians_clusters,decreasing = TRUE)[1]
+    mask[mask != query_cluster] <- NA
+    mask[mask == query_cluster] <- 1
   }
   else{
     stop("provide one of the methods")
@@ -345,15 +303,13 @@ kmeans_sraster <-
 
 
 
-
-
 #=======================================
 #workflow_bhattacharyya
 #=======================================
 
-workflow_bhattacharyya = function(x,mean_a, cov_a){
-  mean_b = apply(x[,c(-1,-2)],2,mean_vector)
-  cov_b = cov(x[,c(-1,-2)],use = 'na.or.complete')
+workflow_bhattacharyya = function(x, mean_a, cov_a){
+  mean_b = apply(x[,-1],2,mean_vector)
+  cov_b = cov(x[,-1],use = 'na.or.complete')
   #Bhattacharyya distance between a and b distribution
   dist_batha = bhattacharyya.dist(mean_a, mean_b, cov_a, cov_b)
   name_polygon = x[1,1]
@@ -367,27 +323,22 @@ b_distance <- function(y, prob){
   #y data frame with the especral and temporal information
   #prob percentage of information reteined into the analysis
 
-  copy_y = y
-  st_geometry(copy_y)<- NULL
-
   #mean and covariance matrix for all the samples
-  mean_a = apply(copy_y[,c(-1,-2)],2,mean_vector)
-  cov_a = cov(copy_y[,c(-1,-2)],use = 'na.or.complete')
+  mean_a = apply(y[,-1],2,mean_vector)
+  cov_a = cov(y[,-1],use = 'na.or.complete')
 
-  list_data_polygon = split(copy_y,copy_y$Object)
+  list_data_polygon = split(y,y$Object)
 
   distances_bhattacharyya = lapply(list_data_polygon, workflow_bhattacharyya, mean_a, cov_a)
 
   distance_bhattacharyya_df = do.call("rbind",distances_bhattacharyya)
 
-  q65 = quantile(distance_bhattacharyya_df[,2] ,probs = c(prob),na.rm = TRUE)
+  quantile_x = quantile(distance_bhattacharyya_df[,2] ,probs = c(prob),na.rm = TRUE)
 
-  selected_polygon_names = distance_bhattacharyya_df[distance_bhattacharyya_df[,2]<=q65 &
+  selected_polygon_names = distance_bhattacharyya_df[distance_bhattacharyya_df[,2]<=quantile_x &
                                                        !is.na(distance_bhattacharyya_df[,2]),1]
 
-  result_df = y[y$Object %in% selected_polygon_names,]
-
-  return(result_df)
+  return(selected_polygon_names)
 
 }
 

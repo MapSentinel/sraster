@@ -45,7 +45,7 @@ file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
 table(legend$Legend)
 
-class_analysis = 'wetland'
+class_analysis = 'water'
 
 legend_class = legend[which(legend$Legend == class_analysis),]
 rm(legend)
@@ -59,7 +59,7 @@ areas_poly = st_area(legend_class)
 boxplot(areas_poly,col = "bisque")
 
 quantile(areas_poly,probs=c(0.25,0.5,0.65,0.75,1))
-lim_max = quantile(areas_poly,probs=c(0.45))
+lim_max = quantile(areas_poly,probs=c(0.75))
 lim_min = 10000   # Minimun mapping unit
 units(lim_min) <- as_units("m^2")
 
@@ -112,8 +112,8 @@ paths_images = unlist(lapply(list_images,join_path,images_folder))
 We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
 
 ```{r }
-shape = legend_class_q1[3,]  #16596
-shape_buffer = legend_class_buffer_q1[3,]
+shape = legend_class_q1[20,]  #16596
+shape_buffer = legend_class_buffer_q1[20,]
 
 plot(st_geometry(shape),border='red')
 plot(st_geometry(shape_buffer), col = 'blue', add=T)
@@ -222,14 +222,15 @@ levelplot(mask_raster,col.regions=c("red","blue","yellow","green","black","orang
 ```{r }
 result_clip = clip_sraster(result_stack, mask = cluster_matrix, type ="Majority rule")
 plot(funct_plot((result_clip$data[["2017-10-02"]][,,11])))
-#st_write(as.data.frame(result_clip),"output_clip.csv",layer_options = "GEOMETRY=AS_XY")
+#st_write(as.data.frame(result_clip),"output_clip_3.csv",layer_options = "GEOMETRY=AS_XY")
 ```
 
 ## Extracting spectral temporal information with ndvi rule for water class
 
 ```{r }
-#result_clip = clip_sraster(result_stack, mask = cluster_matrix, type ="rule_ndvi_wood")
-#plot(funct_plot((result_clip$data[["2017-10-02"]][,,11])))
+result_clip = clip_sraster(result_stack, mask = cluster_matrix, type ="rule_ndvi_water")
+plot(funct_plot((result_clip$data[["2017-10-02"]][,,11])))
+#st_write(as.data.frame(result_clip),"output_clip_test2.csv",layer_options = "GEOMETRY=AS_XY")
 ```
 
 # Working with more polygons
@@ -244,7 +245,7 @@ This example covers only water. I want only call 20 polygons for this example
 #=========================
 #Goal : stratified random selection of traing samples at level of polygon, (queriying only one class)
 
-n_samples = 31
+n_samples = 70
 set.seed(123)   #setting same random selection for testing
 index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
 ```
@@ -253,23 +254,25 @@ index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
 The following script contains the workflow that generalize the process done with the polygon of water done above. We require 3.5 seconds per polygon, so working with 20 this process can take one minute and 10 seconds more.
 
 ```{r}
+valor_zero = set_units(0,m^2)
 workflow <- function(shape, paths_images,type){
-          result = as_sraster(shape,paths_images,names_bands=c("B2","B3","B4","B5","B6","B7","B8","B8A","B11","B12"))
-          result_ndvi = as_sraster(shape, paths_images_ndvi, names_bands = c("NDVI"))
-          result_NDBI = as_sraster(shape, paths_images_NDBI, names_bands = c("NDBI"))
-          result_NDMIR = as_sraster(shape, paths_images_NDMIR, names_bands = c("NDMIR"))
-          result_stack = stack(list(result, result_ndvi,result_NDBI, result_NDMIR))
-          
-          if(length(which(!is.na(result_stack$data[[1]][,,1]))) >=  25){
-              cluster_matrix = kmeans_sraster(result_stack)
-              result_clip = clip_sraster(result_stack, mask = cluster_matrix, type)
-              if(is.null(result_clip)){
-                  return(NULL)
-              }
-              else{
-                  return(as.data.frame(result_clip))            
-              }
-          }
+  if(sf::st_area(shape)>valor_zero){
+    result = as_sraster(shape,paths_images,names_bands=c("B2","B3","B4","B5","B6","B7","B8","B8A","B11","B12"))
+    result_ndvi = as_sraster(shape, paths_images_ndvi, names_bands = c("NDVI"))
+    result_NDBI = as_sraster(shape, paths_images_NDBI, names_bands = c("NDBI"))
+    result_NDMIR = as_sraster(shape, paths_images_NDMIR, names_bands = c("NDMIR"))
+    result_stack = stack(list(result, result_ndvi,result_NDBI, result_NDMIR))
+    if(length(which(!is.na(result_stack$data[[1]][,,1]))) >=  25){
+        cluster_matrix = kmeans_sraster(result_stack)
+        result_clip = clip_sraster(result_stack, mask = cluster_matrix, type)
+        if(is.null(result_clip)){
+              return(NULL)
+        }
+        else{
+            return(as.data.frame(result_clip))            
+        }
+    }
+    }
 }
 ```
 
@@ -282,18 +285,11 @@ workflow <- function(shape, paths_images,type){
 
 legend_class_buffer_q2 = legend_class_buffer_q1[index,]
 
-#legend_class_buffer_q2 = legend_class_buffer_q2[!(legend_class_buffer_q2$OBJECTI %in% #c(91652,91678,91658,91659,91660)),]
-
-
 list_shapes = split(legend_class_buffer_q2,legend_class_buffer_q2$OBJECTI)
 
-result_list_majrule = lapply(list_shapes, workflow, paths_images, type ="Majority rule")
+result_list_rule = lapply(list_shapes, workflow, paths_images, type ="rule_ndvi_water")
 
-#result_list_ndvirule = lapply(list_shapes, workflow, paths_images, type ="rule_ndvi_wood")
-
-result_df_majrule = do.call("rbind",result_list_majrule)
-
-#result_df_ndvirule = do.call("rbind",result_list_ndvirule)
+result_df_rule = do.call("rbind",result_list_rule)
 ```
 
 
@@ -302,13 +298,13 @@ result_df_majrule = do.call("rbind",result_list_majrule)
 ```{r }
 library(reshape2)
 library(ggplot2)
-index_indvi = grep("NDVI",colnames(result_df_majrule))
+index_indvi = grep("NDVI",colnames(result_df_rule))
 
-result_df_majrule_ndvi = result_df_majrule[,c(1,index_indvi)]
+result_df_rule_ndvi = result_df_rule[,c(1,index_indvi)]
 
-st_geometry(result_df_majrule_ndvi) = NULL
+st_geometry(result_df_rule_ndvi) = NULL
 
-result_aggregate_time = aggregate(result_df_majrule_ndvi, by = list(result_df_majrule_ndvi$Object), FUN = median, na.rm =TRUE)
+result_aggregate_time = aggregate(result_df_rule_ndvi, by = list(result_df_rule_ndvi$Object), FUN = median, na.rm =TRUE)
 resultmelt <- melt(result_aggregate_time[,-1], id.vars = "Object")
 #removing ndvi text
 resultmelt$variable <- as.Date(substr(resultmelt[,c("variable")], 1, 10))
@@ -324,10 +320,10 @@ print(p1)
 ## Bhattacharyya distance
 
 ```{r }
-y = result_df_majrule[,c(1,index_indvi)]
+y = result_df_rule[,c(1,index_indvi)]
 st_geometry(y) <- NULL
 index_preserve = b_distance(y, prob= 0.80)
-result_df_majrule2 = result_df_majrule[result_df_majrule$Object %in% index_preserve, ]
+result_df_rule2 = result_df_rule[result_df_rule$Object %in% index_preserve, ]
 
 #graphic 2
 resultmelt$Type = "Outlier"
@@ -360,10 +356,10 @@ To save the results
 
 ```{r }
 #eval= FALSE
-st_crs(result_df_majrule)<-st_crs(legend_class)
-st_crs(result_df_majrule2)<-st_crs(legend_class)
-st_write(result_df_majrule, paste0("output_",class_analysis,"_majrule.csv"), layer_options = "GEOMETRY=AS_XY")
-st_write(result_df_majrule2, paste0("output_",class_analysis,"_majrule_bdist.csv"), layer_options = "GEOMETRY=AS_XY")
+st_crs(result_df_rule)<-st_crs(legend_class)
+st_crs(result_df_rule2)<-st_crs(legend_class)
+st_write(result_df_rule, paste0("output_",class_analysis,"_rule.csv"), layer_options = "GEOMETRY=AS_XY")
+st_write(result_df_rule2, paste0("output_",class_analysis,"_rule_bdist.csv"), layer_options = "GEOMETRY=AS_XY")
 #st_write(result_df_ndvirule2, paste0("output_",class_analysis,"_ndvirule.csv"), layer_options = "GEOMETRY=AS_XY")
 ```
 
@@ -376,7 +372,6 @@ result_df_nr = do.call("rbind",result_list_nr)
 st_crs(result_df_nr)<-st_crs(legend_class)
 st_write(result_df_nr, paste0("output_",class_analysis,"_norule.csv"), layer_options = "GEOMETRY=AS_XY")
 ```
-
 
 
 #saving pixel values ndvi processing

@@ -32,13 +32,13 @@ stat_metrics = NULL
 overall_accuracy = NULL
 
 
-for(iter in 1:2){
+for(iter in 1:15){
   
 file_directory = 'C:\\IPSTERS\\sraster\\ins3\\sampling_3'
 list_files = lapply(list.files(file_directory),function(x){paste0(file_directory,"\\",x)})
 
 group_by = 'Object'
-nsamples = 1000
+nsamples = 7000
 
 sampling_strata <- function(file_x, nsamples, group_by ){
   x = read.csv(file_x,sep = ",", header = TRUE)
@@ -149,6 +149,7 @@ test = data_random3[data_random3$type == "Test",-c(1,2,3,96)]
 #set.seed(222)
 model_rf = randomForest::randomForest(Label~. , data = train,ntree = 500)
 print(model_rf)
+randomForest::importance(model_rf)
 
 #===============================
 #Prediction
@@ -176,6 +177,6 @@ cat("ready",iter)
 #gc()
 #rm(list=ls())
 
-#write.csv(stat_metrics,"S3_stat_metrics_3000s_ndvi.csv")
-#write.csv(overall_accuracy ,"S3_overall_accuracy_3000s_ndvi.csv")
+#write.csv(stat_metrics,"S3_stat_metrics_7000s_ndvi.csv")
+#write.csv(overall_accuracy ,"S3_overall_accuracy_7000s_ndvi.csv")
 ```

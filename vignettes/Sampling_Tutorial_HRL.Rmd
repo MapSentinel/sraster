@@ -258,7 +258,7 @@ plot(funct_plot((result_clip_cluster$data[["2017-10-02"]][,,11])))
 Well, this workflow also attempts to construct a database with the spectral-temporal information that must be part of the trainig and validation modelling. So here we want to evaluate haw fast we can retrieve pseudotraining and put it a file that later on we will use for modelling. 
 
 ```{r }
-n_samples = 40
+n_samples = 30
 set.seed(123)   #setting same random selection for testing
 index = sample(1:dim(legend_class_q1)[1], n_samples,replace = FALSE)
 ```
