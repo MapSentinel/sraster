@@ -1,0 +1,73 @@
+---
+title: "Results"
+author: "William Martinez"
+date: "16/08/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Result
+
+
+```{r }
+library(ggplot2)
+file_comparision_models = 'C:\\IPSTERS\\sraster\\Results\\Accuraccies_perclass.csv'
+
+#reading file
+comparision_models  = read.csv(file_comparision_models, sep = ";",header = T, dec = ',')
+
+comparision_models$Class = factor(comparision_models$Class,levels = c("urban","baresoil", "rainfed", "irrigated", "rice field", "A_grassland", "broadleaf", "conifers", "N_grassland", "shrubland", "S_vegetation", "wetland", "water"))
+
+comparision_models$Samples <- as.factor(comparision_models$Samples)
+
+
+comparision_models1 = comparision_models[comparision_models$Base == 'Base 3',]
+
+
+#ggplot
+p1 <- ggplot(data = comparision_models1 , aes(x=Class, y=F1, fill = Samples )) + geom_boxplot() + 
+  theme(strip.text.x = element_text(size=14, 
+                                    face="bold.italic"),
+        strip.text.y = element_text(angle = 0,size=12,
+                                      face="bold.italic"),
+        axis.title.y = element_text(size=12, face="bold"),
+        axis.title.x = element_text(size=12, face="bold"))+
+  theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=14,face="bold"))
+print(p1)
+```
+
+
+
+
+```{r }
+
+comparision_models2 = comparision_models[comparision_models$Samples == '7000' & comparision_models$Base == 'Base 3'
+                                         & comparision_models$Treatment == 'SI',]
+
+df_f1 = aggregate(F1 ~ Class + Base, data = comparision_models2, mean)
+df_pr = aggregate(Producer ~ Class + Base, data = comparision_models2, mean)
+df_us = aggregate(User ~ Class + Base, data = comparision_models2, mean)
+
+
+```
+
+
+
+
+```{r }
+library(ggplot2)
+file_comparision_models_g = 'C:\\IPSTERS\\sraster\\Results\\Accuraccies_general.csv'
+
+#reading file
+comparision_models_g  = read.csv(file_comparision_models_g, sep = ";",header = T, dec = ',')
+
+comparision_models_g1= comparision_models_g[comparision_models_g$Samples=='7000' & comparision_models_g$Base == 'Base 3' & comparision_models_g$VI == 'SI',]
+
+df_oa = aggregate(AccuracyLower ~ Base,data= comparision_models_g1, mean)
+
+
+```

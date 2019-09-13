@@ -178,6 +178,7 @@ clip_sraster = function(x, mask, type, threshold = 0.5 ){
     mask[mask == query_cluster] <- 1
   }
   else if(type == 'rule_ndvi_wood'){
+    #here the idea is to select the cluster with the largest NDVI
     col_ndvi = grep("NDVI",x$bands)
     ndvi_layers = lapply(x$data,function(w,col_ndvi) w[,,col_ndvi],col_ndvi)
     clusters_name = names(table(mask))

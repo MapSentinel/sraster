@@ -45,7 +45,7 @@ file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
 table(legend$Legend)
 
-class_analysis = 'water'
+class_analysis = 'baresoil'
 
 legend_class = legend[which(legend$Legend == class_analysis),]
 rm(legend)

@@ -253,12 +253,23 @@ plot(funct_plot((result_clip_cluster$data[["2017-10-02"]][,,11])))
 #st_write(as.data.frame(result_clip),"output_clip.csv",layer_options = "GEOMETRY=AS_XY")
 ```
 
+## Extracting spectral temporal information with ndvi rule for woody class
+
+```{r }
+result_clip_cluster = clip_sraster(result_clip, mask = cluster_matrix, type ="rule_ndvi_wood")
+plot(funct_plot((result_clip_cluster$data[["2017-10-02"]][,,11])))
+#st_write(as.data.frame(result_clip),"output_clip_test2.csv",layer_options = "GEOMETRY=AS_XY")
+```
+
+
+
+
 # Working with more polygons
 
 Well, this workflow also attempts to construct a database with the spectral-temporal information that must be part of the trainig and validation modelling. So here we want to evaluate haw fast we can retrieve pseudotraining and put it a file that later on we will use for modelling. 
 
 ```{r }
-n_samples = 30
+n_samples = 70
 set.seed(123)   #setting same random selection for testing
 index = sample(1:dim(legend_class_q1)[1], n_samples,replace = FALSE)
 ```
@@ -309,7 +320,7 @@ legend_class_q2 = legend_class_q1[index,]
 
 list_shapes = split(legend_class_q2,legend_class_q2$OBJECTI)
 
-result_list_majrule = lapply(list_shapes, workflow, paths_images, type ="Majority rule")
+result_list_majrule = lapply(list_shapes, workflow, paths_images, type ="rule_ndvi_wood")
 
 result_df_majrule = do.call("rbind",result_list_majrule)
 ```
