@@ -9,8 +9,39 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Result
+## Result trayectories
 
+```{r }
+library(ggplot2)
+library(reshape2)
+
+#output_irrigated_majrule_bdist
+#output_rainfed_majrule_bdist
+path_file= '/home/willimarti2008/Documents/DGT/sraster/ins3/sampling_2/output_broadleaf_majrule.csv'
+data_class = read.csv(path_file, sep= ',', header = T, dec = '.' )
+
+col_ndvi = grep("NDVI",colnames(data_class))
+data_class_ndvi = data_class[,c(3,col_ndvi)]
+
+func_stat <- function(l){quantile(l,c(0.1),na.rm=TRUE)}
+result_aggregate_time = aggregate(data_class_ndvi, by = list(data_class_ndvi$Object), FUN = func_stat)
+resultmelt <- melt(result_aggregate_time[,-1], id.vars = "Object")
+#removing ndvi text
+resultmelt$variable <- as.Date(substr(resultmelt[,c("variable")], 2, 11),"%Y.%m.%d")
+resultmelt$Object <- as.factor(resultmelt$Object)
+
+p1 <- ggplot(resultmelt, aes(variable, value, group = Object)) + 
+  geom_line(color="red") + theme(legend.position="top")
+print(p1)
+```
+
+```{r }
+
+p1 <- ggplot(resultmelt , aes(x=variable, y=value, group = variable )) + geom_boxplot() +
+  geom_boxplot() + theme(legend.position="top")
+
+print(p1)
+```
 
 ```{r }
 library(ggplot2)
