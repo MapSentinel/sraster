@@ -27,8 +27,8 @@ First at all, we wil import a set of modules that will speed up the performance 
 
 ```{r, message=FALSE, warning=FALSE}
 
-#source('/home/willimarti2008/Documents/DGT/sraster/R/clip_raster.R')
-source('C:\\IPSTERS\\sraster\\R\\clip_raster.R')
+source('/home/willimarti2008/Documents/DGT/sraster/R/clip_raster.R')
+#source('C:\\IPSTERS\\sraster\\R\\clip_raster.R')
 
 #===============================
 #Example
@@ -40,8 +40,8 @@ library(rasterVis)
 library(stars)
 library(raster)
 
-file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
-#file_shape = '/home/willimarti2008/Documents/DGT/COS2015/COS2015_v2_08_02_2019_clip.shp'
+#file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
+file_shape = '/home/willimarti2008/Documents/DGT/COS2015/COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
 table(legend$Legend)
 
@@ -83,13 +83,13 @@ legend_class_buffer_q1 = st_buffer(legend_class_q1,-20)
 
 
 ```{r, message=FALSE, warning=FALSE}
-images_folder = 'C:\\IPSTERS\\IMAGES'
-#images_folder = '/home/willimarti2008/Documents/DGT/images'
+#images_folder = 'C:\\IPSTERS\\IMAGES'
+images_folder = '/home/willimarti2008/Documents/DGT/images'
 join_path = function(x,path_folder){
   a = strsplit(x,'[.]')
   format_file = a[[1]][length(a[[1]])]
   if(format_file == 'tif'){
-    return(paste0(path_folder,'\\',x))
+    return(paste0(path_folder,'/',x))
   }
 }
 
@@ -228,8 +228,8 @@ plot(funct_plot((result_clip$data[["2017-10-02"]][,,11])))
 ## Extracting spectral temporal information with ndvi rule for water class
 
 ```{r }
-result_clip = clip_sraster(result_stack, mask = cluster_matrix, type ="rule_ndvi_water")
-plot(funct_plot((result_clip$data[["2017-10-02"]][,,11])))
+#result_clip = clip_sraster(result_stack, mask = cluster_matrix, type ="rule_ndvi_water")
+#plot(funct_plot((result_clip$data[["2017-10-02"]][,,11])))
 #st_write(as.data.frame(result_clip),"output_clip_test2.csv",layer_options = "GEOMETRY=AS_XY")
 ```
 
@@ -245,9 +245,13 @@ This example covers only water. I want only call 20 polygons for this example
 #=========================
 #Goal : stratified random selection of traing samples at level of polygon, (queriying only one class)
 
-n_samples = 70
+n_samples = 150
 set.seed(123)   #setting same random selection for testing
 index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
+file_index = '/home/willimarti2008/Documents/DGT/sraster/vignettes/index_baresoil.csv'
+index_df = read.csv(file_index)
+index = index_df[,2]
+#write.csv(data.frame(unique(result_df_rule$Object),class_analysis),file_index)
 ```
 
 
@@ -282,12 +286,14 @@ workflow <- function(shape, paths_images,type){
 
 ```{r }
 #query 2  eval= FALSE 
-
-legend_class_buffer_q2 = legend_class_buffer_q1[index,]
+# 
+legend_class_buffer_q2 = legend_class_buffer_q1[legend_class_buffer_q1$OBJECTI %in% index,]
 
 list_shapes = split(legend_class_buffer_q2,legend_class_buffer_q2$OBJECTI)
 
-result_list_rule = lapply(list_shapes, workflow, paths_images, type ="rule_ndvi_water")
+type_rule ="Majority rule"
+
+result_list_rule = lapply(list_shapes, workflow, paths_images, type_rule)
 
 result_df_rule = do.call("rbind",result_list_rule)
 ```
@@ -358,8 +364,8 @@ To save the results
 #eval= FALSE
 st_crs(result_df_rule)<-st_crs(legend_class)
 st_crs(result_df_rule2)<-st_crs(legend_class)
-st_write(result_df_rule, paste0("output_",class_analysis,"_rule.csv"), layer_options = "GEOMETRY=AS_XY")
-st_write(result_df_rule2, paste0("output_",class_analysis,"_rule_bdist.csv"), layer_options = "GEOMETRY=AS_XY")
+st_write(result_df_rule, paste0("output_",class_analysis,"_",type_rule,".csv"), layer_options = "GEOMETRY=AS_XY")
+st_write(result_df_rule2, paste0("output_",class_analysis,"_",type_rule,"_bdist.csv"), layer_options = "GEOMETRY=AS_XY")
 #st_write(result_df_ndvirule2, paste0("output_",class_analysis,"_ndvirule.csv"), layer_options = "GEOMETRY=AS_XY")
 ```
 
