@@ -32,9 +32,9 @@ stat_metrics = NULL
 overall_accuracy = NULL
 
 
-for(iter in 1:15){
+for(iter in 1:30){
   
-file_directory = 'C:\\IPSTERS\\sraster\\ins3\\sampling_4'
+file_directory = 'C:\\IPSTERS\\sraster\\ins4\\sampling_1'
 list_files = lapply(list.files(file_directory),function(x){paste0(file_directory,"\\",x)})
 
 group_by = 'Object'
@@ -177,6 +177,6 @@ cat("ready",iter)
 #gc()
 #rm(list=ls())
 
-#write.csv(stat_metrics,"S3_stat_metrics_7000s_ndvi.csv")
-#write.csv(overall_accuracy ,"S3_overall_accuracy_7000s_ndvi.csv")
+#write.csv(stat_metrics,"S3_stat_metrics_7000s_ndvi_BD.csv")
+#write.csv(overall_accuracy ,"S3_overall_accuracy_7000s_ndvi_DB.csv")
 ```

@@ -17,13 +17,14 @@ library(reshape2)
 
 #output_irrigated_majrule_bdist
 #output_rainfed_majrule_bdist
-path_file= '/home/willimarti2008/Documents/DGT/sraster/ins3/sampling_2/output_broadleaf_majrule.csv'
+path_file = 'C:\\IPSTERS\\sraster\\ins4\\sampling_1\\output_baresoil_Majorityrule_bdist.csv'
+#path_file =  'C:\\IPSTERS\\sraster\\ins4\\sampling_2\\output_baresoil_Majorityrule.csv'
 data_class = read.csv(path_file, sep= ',', header = T, dec = '.' )
 
 col_ndvi = grep("NDVI",colnames(data_class))
 data_class_ndvi = data_class[,c(3,col_ndvi)]
 
-func_stat <- function(l){quantile(l,c(0.1),na.rm=TRUE)}
+func_stat <- function(l){quantile(l,c(0.5),na.rm=TRUE)}
 result_aggregate_time = aggregate(data_class_ndvi, by = list(data_class_ndvi$Object), FUN = func_stat)
 resultmelt <- melt(result_aggregate_time[,-1], id.vars = "Object")
 #removing ndvi text
@@ -55,11 +56,11 @@ comparision_models$Class = factor(comparision_models$Class,levels = c("urban","b
 comparision_models$Samples <- as.factor(comparision_models$Samples)
 
 
-comparision_models1 = comparision_models[comparision_models$Base == 'Base 3',]
+comparision_models1 = comparision_models[comparision_models$COMP == 'SI',]
 
 
 #ggplot
-p1 <- ggplot(data = comparision_models1 , aes(x=Class, y=F1, fill = Samples )) + geom_boxplot() + 
+p1 <- ggplot(data = comparision_models1 , aes(x=Class, y=F1, fill = Base )) + geom_boxplot() + 
   theme(strip.text.x = element_text(size=14, 
                                     face="bold.italic"),
         strip.text.y = element_text(angle = 0,size=12,
