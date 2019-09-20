@@ -43,6 +43,14 @@ legend_class = legend[which(legend$Legend == class_analysis),]
 rm(legend)
 ```
 
+## Buffer
+
+```{r, message=FALSE, warning=FALSE}
+legend_class_buffer = st_buffer(legend_class_q1,-20)
+```
+
+
+
 ## Query Polygons based on HRL
 
 To transform all HRL mask to polygon vector may represent a really demanding computationall task. This task is mean to later on applying an intersection wiht the polygons of COS. However, before that intersection we require that the mask layer shrinks boundaries in 20 meters in order to have higher certainty that the pixel is covering this kind of class. 
@@ -58,7 +66,7 @@ hrl_points = st_as_sf(rasterToPoints(hrl,spatial = TRUE))
 
 ### Intersection
 ```{r}
-intersect_poly_hrl_cos = st_intersects(legend_class , hrl_points)
+intersect_poly_hrl_cos = st_intersects(legend_class_buffer , hrl_points)
 ```
 
 
@@ -269,9 +277,15 @@ plot(funct_plot((result_clip_cluster$data[["2017-10-02"]][,,11])))
 Well, this workflow also attempts to construct a database with the spectral-temporal information that must be part of the trainig and validation modelling. So here we want to evaluate haw fast we can retrieve pseudotraining and put it a file that later on we will use for modelling. 
 
 ```{r }
-n_samples = 70
+n_samples = 150
 set.seed(123)   #setting same random selection for testing
 index = sample(1:dim(legend_class_q1)[1], n_samples,replace = FALSE)
+
+file_index = 'C:\\IPSTERS\\sraster\\ins4\\index\\index_broadleaf.csv'
+index_df = read.csv(file_index)
+index = index_df[,2]
+#write.csv(data.frame(unique(result_df_rule$Object),class_analysis),file_index)
+
 ```
 
 
@@ -304,7 +318,7 @@ workflow <- function(shape, paths_images, type){
             }
             else{
               result_clip_cluster = clip_sraster(result_clip, mask = cluster_matrix, type)
-              return(as.data.frame(result_clip_cluster))            
+              return(as.data.frame(result_clip_cluster))
             }
           }
 }
@@ -316,13 +330,11 @@ workflow <- function(shape, paths_images, type){
 
 ```{r }
 #query 2  eval= FALSE 
-legend_class_q2 = legend_class_q1[index,]
-
+legend_class_q2 = legend_class_q1[legend_class_q1$OBJECTI %in% index,]
 list_shapes = split(legend_class_q2,legend_class_q2$OBJECTI)
-
-result_list_majrule = lapply(list_shapes, workflow, paths_images, type ="rule_ndvi_wood")
-
-result_df_majrule = do.call("rbind",result_list_majrule)
+type_rule ="No rule"
+result_list_rule = lapply(list_shapes, workflow, paths_images, type_rule)
+result_df_rule = do.call("rbind",result_list_rule)
 ```
 
 
@@ -331,13 +343,13 @@ result_df_majrule = do.call("rbind",result_list_majrule)
 ```{r }
 library(reshape2)
 library(ggplot2)
-index_indvi = grep("NDVI",colnames(result_df_majrule))
+index_indvi = grep("NDVI",colnames(result_df_rule))
 
-result_df_majrule_ndvi = result_df_majrule[,c(1,index_indvi)]
+result_df_rule_ndvi = result_df_rule[,c(1,index_indvi)]
 
-st_geometry(result_df_majrule_ndvi) = NULL
+st_geometry(result_df_rule_ndvi) = NULL
 
-result_aggregate_time = aggregate(result_df_majrule_ndvi, by = list(result_df_majrule_ndvi$Object), FUN = median, na.rm =TRUE)
+result_aggregate_time = aggregate(result_df_rule_ndvi, by = list(result_df_rule_ndvi$Object), FUN = median, na.rm =TRUE)
 resultmelt <- melt(result_aggregate_time[,-1], id.vars = "Object")
 #removing ndvi text
 resultmelt$variable <- as.Date(substr(resultmelt[,c("variable")], 1, 10))
@@ -353,10 +365,10 @@ print(p1)
 ## Bhattacharyya distance
 
 ```{r }
-y = result_df_majrule[,c(1,index_indvi)]
+y = result_df_rule[,c(1,index_indvi)]
 st_geometry(y) <- NULL
 index_preserve = b_distance(y, prob= 0.80)
-result_df_majrule2 = result_df_majrule[result_df_majrule$Object %in% index_preserve, ]
+result_df_rule2 = result_df_rule[result_df_rule$Object %in% index_preserve, ]
 
 #graphic 2
 resultmelt$Type = "Outlier"
@@ -378,10 +390,12 @@ To save the results
 
 ```{r }
 #eval= FALSE
-st_crs(result_df_majrule)<-st_crs(legend_class)
-st_crs(result_df_majrule2)<-st_crs(legend_class)
-st_write(result_df_majrule, paste0("output_",class_analysis,"_majrule.csv"), layer_options = "GEOMETRY=AS_XY")
-st_write(result_df_majrule2, paste0("output_",class_analysis,"_majrule_bdist.csv"), layer_options = "GEOMETRY=AS_XY")
+st_crs(result_df_rule)<-st_crs(legend_class)
+st_crs(result_df_rule2)<-st_crs(legend_class)
+st_write(result_df_rule, paste0("output_",class_analysis,"_",type_rule,".csv"), layer_options = "GEOMETRY=AS_XY")
+st_write(result_df_rule2, paste0("output_",class_analysis,"_",type_rule,"_bdist.csv"), layer_options = "GEOMETRY=AS_XY")
+
+
 #st_write(result_df_ndvirule2, paste0("output_",class_analysis,"_ndvirule.csv"), layer_options = "GEOMETRY=AS_XY")
 ```
 
@@ -405,8 +419,7 @@ workflow2 <- function(shape, paths_images, type){
 
 
 ```{r }
-
-indeces_polygons = unique(result_df_majrule$Object)
+indeces_polygons = unique(result_df_rule$Object)
 legend_class_q3 = legend_class_q2[legend_class_q2$OBJECTI %in% indeces_polygons,]
 
 list_shapes = split(legend_class_q3,legend_class_q3$OBJECTI)
