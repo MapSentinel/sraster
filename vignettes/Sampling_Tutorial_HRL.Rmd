@@ -46,7 +46,7 @@ rm(legend)
 ## Buffer
 
 ```{r, message=FALSE, warning=FALSE}
-legend_class_buffer = st_buffer(legend_class_q1,-20)
+legend_class_buffer = st_buffer(legend_class,-20)
 ```
 
 
@@ -58,7 +58,7 @@ To transform all HRL mask to polygon vector may represent a really demanding com
 ### raster to points
 
 ```{r}
-file_mask = c('C:\\IPSTERS\\sraster\\images\\Mask_broadleaf.tif')
+file_mask = c('C:\\IPSTERS\\sraster\\images\\mask_broadleaf_forestGL.tif')
 hrl = raster(file_mask)
 hrl_points = st_as_sf(rasterToPoints(hrl,spatial = TRUE))
 ```
@@ -80,9 +80,9 @@ number_points = function(x, threshold){
     }
 }
 #threshold: at least one pixel is intersected
-len_vector = lapply(intersect_poly_hrl_cos, number_points, threshold = 20)
+len_vector = lapply(intersect_poly_hrl_cos, number_points, threshold = 25)
 index_poly = which(unlist(len_vector) != 99999)
-legend_class_q0 = legend_class[index_poly,]
+legend_class_q0 = legend_class_buffer[index_poly,]
 #hrl_points = NULL
 ```
 
@@ -96,7 +96,7 @@ areas_poly = st_area(legend_class_q0)
 boxplot(areas_poly,col = "bisque")
 
 quantile(areas_poly,probs=c(0.25,0.5,0.65,0.75,1))
-lim_max = quantile(areas_poly,probs=c(0.65))
+lim_max = quantile(areas_poly,probs=c(0.80))
 lim_min = 10000   # Minimun mapping unit
 units(lim_min) <- as_units("m^2")
 
@@ -277,13 +277,13 @@ plot(funct_plot((result_clip_cluster$data[["2017-10-02"]][,,11])))
 Well, this workflow also attempts to construct a database with the spectral-temporal information that must be part of the trainig and validation modelling. So here we want to evaluate haw fast we can retrieve pseudotraining and put it a file that later on we will use for modelling. 
 
 ```{r }
-n_samples = 150
-set.seed(123)   #setting same random selection for testing
-index = sample(1:dim(legend_class_q1)[1], n_samples,replace = FALSE)
+#n_samples = 150
+#set.seed(123)   #setting same random selection for testing
+#index = sample(1:dim(legend_class_q1)[1], n_samples,replace = FALSE)
 
-file_index = 'C:\\IPSTERS\\sraster\\ins4\\index\\index_broadleaf.csv'
-index_df = read.csv(file_index)
-index = index_df[,2]
+file_index = 'C:\\IPSTERS\\sraster\\ins4\\sampling_4\\output_broadleaf_No rule.csv'
+index_df = read.csv2(file_index)
+index = unique(index_df$Object)
 #write.csv(data.frame(unique(result_df_rule$Object),class_analysis),file_index)
 
 ```
@@ -329,10 +329,10 @@ workflow <- function(shape, paths_images, type){
 
 
 ```{r }
-#query 2  eval= FALSE 
+#query 2  eval= FALSE  legend_class_q1$OBJECTI %in% 
 legend_class_q2 = legend_class_q1[legend_class_q1$OBJECTI %in% index,]
 list_shapes = split(legend_class_q2,legend_class_q2$OBJECTI)
-type_rule ="No rule"
+type_rule ="Majority rule"
 result_list_rule = lapply(list_shapes, workflow, paths_images, type_rule)
 result_df_rule = do.call("rbind",result_list_rule)
 ```
