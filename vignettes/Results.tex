@@ -1,0 +1,215 @@
+\documentclass[]{article}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e} % provides \textsubscript
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+\else % if luatex or xelatex
+  \ifxetex
+    \usepackage{mathspec}
+  \else
+    \usepackage{fontspec}
+  \fi
+  \defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
+\fi
+% use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+% use microtype if available
+\IfFileExists{microtype.sty}{%
+\usepackage{microtype}
+\UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\hypersetup{unicode=true,
+            pdftitle={Use of global land},
+            pdfauthor={DGT Portugal, William Martinez},
+            pdfborder={0 0 0},
+            breaklinks=true}
+\urlstyle{same}  % don't use monospace font for urls
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+\IfFileExists{parskip.sty}{%
+\usepackage{parskip}
+}{% else
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+}
+\setlength{\emergencystretch}{3em}  % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{0}
+% Redefines (sub)paragraphs to behave more like sections
+\ifx\paragraph\undefined\else
+\let\oldparagraph\paragraph
+\renewcommand{\paragraph}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+\let\oldsubparagraph\subparagraph
+\renewcommand{\subparagraph}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+
+%%% Use protect on footnotes to avoid problems with footnotes in titles
+\let\rmarkdownfootnote\footnote%
+\def\footnote{\protect\rmarkdownfootnote}
+
+%%% Change title format to be more compact
+\usepackage{titling}
+
+% Create subtitle command for use in maketitle
+\providecommand{\subtitle}[1]{
+  \posttitle{
+    \begin{center}\large#1\end{center}
+    }
+}
+
+\setlength{\droptitle}{-2em}
+
+  \title{Use of global land}
+    \pretitle{\vspace{\droptitle}\centering\huge}
+  \posttitle{\par}
+    \author{DGT Portugal, William Martinez}
+    \preauthor{\centering\large\emph}
+  \postauthor{\par}
+      \predate{\centering\large\emph}
+  \postdate{\par}
+    \date{05/08/2019}
+
+
+\begin{document}
+\maketitle
+
+{
+\setcounter{tocdepth}{4}
+\tableofcontents
+}
+\hypertarget{result-accuracies-per-class}{%
+\subsection{Result accuracies per
+class}\label{result-accuracies-per-class}}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{library}\NormalTok{(ggplot2)}
+\NormalTok{file_comparision_models =}\StringTok{ 'C:}\CharTok{\textbackslash{}\textbackslash{}}\StringTok{IPSTERS}\CharTok{\textbackslash{}\textbackslash{}}\StringTok{sraster}\CharTok{\textbackslash{}\textbackslash{}}\StringTok{Results}\CharTok{\textbackslash{}\textbackslash{}}\StringTok{Accuraccies_perclass.csv'}
+
+\CommentTok{#reading file}
+\NormalTok{comparision_models  =}\StringTok{ }\KeywordTok{read.csv}\NormalTok{(file_comparision_models, }\DataTypeTok{sep =} \StringTok{";"}\NormalTok{,}\DataTypeTok{header =}\NormalTok{ T, }\DataTypeTok{dec =} \StringTok{','}\NormalTok{)}
+
+\NormalTok{comparision_models}\OperatorTok{$}\NormalTok{Class =}\StringTok{ }\KeywordTok{factor}\NormalTok{(comparision_models}\OperatorTok{$}\NormalTok{Class,}\DataTypeTok{levels =} \KeywordTok{c}\NormalTok{(}\StringTok{"urban"}\NormalTok{,}\StringTok{"baresoil"}\NormalTok{, }\StringTok{"rainfed"}\NormalTok{, }\StringTok{"irrigated"}\NormalTok{, }\StringTok{"rice field"}\NormalTok{, }\StringTok{"A_grassland"}\NormalTok{, }\StringTok{"broadleaf"}\NormalTok{, }\StringTok{"conifers"}\NormalTok{, }\StringTok{"N_grassland"}\NormalTok{, }\StringTok{"shrubland"}\NormalTok{, }\StringTok{"S_vegetation"}\NormalTok{, }\StringTok{"wetland"}\NormalTok{, }\StringTok{"water"}\NormalTok{))}
+
+\NormalTok{comparision_models}\OperatorTok{$}\NormalTok{External=}\StringTok{ }\KeywordTok{factor}\NormalTok{(comparision_models}\OperatorTok{$}\NormalTok{External , }\DataTypeTok{levels =} \KeywordTok{c}\NormalTok{(}\StringTok{'COS'}\NormalTok{,}\StringTok{'COS_HRL'}\NormalTok{,}\StringTok{'COS_GL30_HRL'}\NormalTok{))}
+
+\NormalTok{comparision_models}\OperatorTok{$}\NormalTok{Samples <-}\StringTok{ }\KeywordTok{as.factor}\NormalTok{(comparision_models}\OperatorTok{$}\NormalTok{Samples)}
+
+\NormalTok{comparision_models}\OperatorTok{$}\NormalTok{Polygons <-}\StringTok{ }\KeywordTok{as.factor}\NormalTok{(comparision_models}\OperatorTok{$}\NormalTok{Polygons)}
+
+\NormalTok{comparision_models1 =}\StringTok{ }\NormalTok{comparision_models[comparision_models}\OperatorTok{$}\NormalTok{External }\OperatorTok{%in%}\StringTok{ }\KeywordTok{c}\NormalTok{(}\StringTok{'COS'}\NormalTok{,}\StringTok{'COS_HRL'}\NormalTok{,}\StringTok{'COS_GL30_HRL'}\NormalTok{),]}
+
+\CommentTok{#ggplot}
+\NormalTok{p1 <-}\StringTok{ }\KeywordTok{ggplot}\NormalTok{(}\DataTypeTok{data =}\NormalTok{ comparision_models1 , }\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\NormalTok{Class, }\DataTypeTok{y=}\NormalTok{F1, }\DataTypeTok{fill =}\NormalTok{ External )) }\OperatorTok{+}\StringTok{ }\KeywordTok{geom_boxplot}\NormalTok{() }\OperatorTok{+}\StringTok{ }
+\StringTok{  }\KeywordTok{theme}\NormalTok{(}\DataTypeTok{axis.text.x =} \KeywordTok{element_text}\NormalTok{(}\DataTypeTok{size=}\DecValTok{15}\NormalTok{, }
+                                    \DataTypeTok{face=}\StringTok{"bold.italic"}\NormalTok{,}\DataTypeTok{angle =} \DecValTok{90}\NormalTok{),}
+        \DataTypeTok{axis.text.y =} \KeywordTok{element_text}\NormalTok{(}\DataTypeTok{angle =} \DecValTok{0}\NormalTok{,}\DataTypeTok{size=}\DecValTok{12}\NormalTok{,}
+                                      \DataTypeTok{face=}\StringTok{"bold.italic"}\NormalTok{),}
+        \DataTypeTok{axis.title.y =} \KeywordTok{element_text}\NormalTok{(}\DataTypeTok{size=}\DecValTok{14}\NormalTok{, }\DataTypeTok{face=}\StringTok{"bold"}\NormalTok{),}
+        \DataTypeTok{axis.title.x =} \KeywordTok{element_text}\NormalTok{(}\DataTypeTok{size=}\DecValTok{14}\NormalTok{, }\DataTypeTok{face=}\StringTok{"bold"}\NormalTok{)) }\OperatorTok{+}
+\StringTok{        }\KeywordTok{expand_limits}\NormalTok{(}\DataTypeTok{y =} \KeywordTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{1}\NormalTok{)) }
+\CommentTok{#+scale_fill_manual(values=c("#FC4E07", "#C4961A"))}
+\KeywordTok{print}\NormalTok{(p1)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Warning: Removed 1 rows containing non-finite values (stat_boxplot).
+\end{verbatim}
+
+\includegraphics{Results_files/figure-latex/unnamed-chunk-1-1.pdf}
+
+\hypertarget{result-trayectories}{%
+\subsection{Result trayectories}\label{result-trayectories}}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{library}\NormalTok{(ggplot2)}
+\KeywordTok{library}\NormalTok{(reshape2)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Warning: package 'reshape2' was built under R version 3.6.1
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{path_file =}\StringTok{ 'C:}\CharTok{\textbackslash{}\textbackslash{}}\StringTok{IPSTERS}\CharTok{\textbackslash{}\textbackslash{}}\StringTok{sraster}\CharTok{\textbackslash{}\textbackslash{}}\StringTok{ins4}\CharTok{\textbackslash{}\textbackslash{}}\StringTok{sampling_4}\CharTok{\textbackslash{}\textbackslash{}}\StringTok{output_broadleaf2_Majorityrule_bdist.csv'}
+\NormalTok{data_class =}\StringTok{ }\KeywordTok{read.csv}\NormalTok{(path_file, }\DataTypeTok{sep=} \StringTok{','}\NormalTok{, }\DataTypeTok{header =}\NormalTok{ T, }\DataTypeTok{dec =} \StringTok{'.'}\NormalTok{ )}
+
+\NormalTok{col_ndvi =}\StringTok{ }\KeywordTok{grep}\NormalTok{(}\StringTok{"NDVI"}\NormalTok{,}\KeywordTok{colnames}\NormalTok{(data_class))}
+\NormalTok{data_class_ndvi =}\StringTok{ }\NormalTok{data_class[,}\KeywordTok{c}\NormalTok{(}\DecValTok{3}\NormalTok{,col_ndvi)]}
+
+\NormalTok{func_stat <-}\StringTok{ }\ControlFlowTok{function}\NormalTok{(l)\{}\KeywordTok{quantile}\NormalTok{(l,}\KeywordTok{c}\NormalTok{(}\FloatTok{0.5}\NormalTok{),}\DataTypeTok{na.rm=}\OtherTok{TRUE}\NormalTok{)\}}
+\NormalTok{result_aggregate_time =}\StringTok{ }\KeywordTok{aggregate}\NormalTok{(data_class_ndvi, }\DataTypeTok{by =} \KeywordTok{list}\NormalTok{(data_class_ndvi}\OperatorTok{$}\NormalTok{Object), }\DataTypeTok{FUN =}\NormalTok{ func_stat)}
+\NormalTok{resultmelt <-}\StringTok{ }\KeywordTok{melt}\NormalTok{(result_aggregate_time[,}\OperatorTok{-}\DecValTok{1}\NormalTok{], }\DataTypeTok{id.vars =} \StringTok{"Object"}\NormalTok{)}
+\CommentTok{#removing ndvi text}
+\NormalTok{resultmelt}\OperatorTok{$}\NormalTok{variable <-}\StringTok{ }\KeywordTok{as.Date}\NormalTok{(}\KeywordTok{substr}\NormalTok{(resultmelt[,}\KeywordTok{c}\NormalTok{(}\StringTok{"variable"}\NormalTok{)], }\DecValTok{2}\NormalTok{, }\DecValTok{11}\NormalTok{),}\StringTok{"%Y.%m.%d"}\NormalTok{)}
+\NormalTok{resultmelt}\OperatorTok{$}\NormalTok{Object <-}\StringTok{ }\KeywordTok{as.factor}\NormalTok{(resultmelt}\OperatorTok{$}\NormalTok{Object)}
+
+\NormalTok{p1 <-}\StringTok{ }\KeywordTok{ggplot}\NormalTok{(resultmelt, }\KeywordTok{aes}\NormalTok{(variable, value, }\DataTypeTok{group =}\NormalTok{ Object)) }\OperatorTok{+}\StringTok{ }
+\StringTok{  }\KeywordTok{geom_line}\NormalTok{(}\DataTypeTok{color=}\StringTok{"red"}\NormalTok{) }\OperatorTok{+}\StringTok{ }\KeywordTok{theme}\NormalTok{(}\DataTypeTok{legend.position=}\StringTok{"top"}\NormalTok{)}
+\KeywordTok{print}\NormalTok{(p1)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Results_files/figure-latex/unnamed-chunk-2-1.pdf}
+
+
+\end{document}

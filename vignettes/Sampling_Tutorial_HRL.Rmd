@@ -384,7 +384,7 @@ print(p1)
 
 ```
 
-
+ccccccccc
 
 To save the results
 
@@ -394,7 +394,6 @@ st_crs(result_df_rule)<-st_crs(legend_class)
 st_crs(result_df_rule2)<-st_crs(legend_class)
 st_write(result_df_rule, paste0("output_",class_analysis,"_",type_rule,".csv"), layer_options = "GEOMETRY=AS_XY")
 st_write(result_df_rule2, paste0("output_",class_analysis,"_",type_rule,"_bdist.csv"), layer_options = "GEOMETRY=AS_XY")
-
 
 #st_write(result_df_ndvirule2, paste0("output_",class_analysis,"_ndvirule.csv"), layer_options = "GEOMETRY=AS_XY")
 ```

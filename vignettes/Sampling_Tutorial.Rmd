@@ -27,8 +27,8 @@ First at all, we wil import a set of modules that will speed up the performance 
 
 ```{r, message=FALSE, warning=FALSE}
 
-source('/home/willimarti2008/Documents/DGT/sraster/R/clip_raster.R')
-#source('C:\\IPSTERS\\sraster\\R\\clip_raster.R')
+#source('/home/willimarti2008/Documents/DGT/sraster/R/clip_raster.R')
+source('C:\\IPSTERS\\sraster\\R\\clip_raster.R')
 
 #===============================
 #Example
@@ -40,12 +40,12 @@ library(rasterVis)
 library(stars)
 library(raster)
 
-#file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
-file_shape = '/home/willimarti2008/Documents/DGT/COS2015/COS2015_v2_08_02_2019_clip.shp'
+file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
+#file_shape = '/home/willimarti2008/Documents/DGT/COS2015/COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
 table(legend$Legend)
 
-class_analysis = 'baresoil'
+class_analysis = 'conifers'
 
 legend_class = legend[which(legend$Legend == class_analysis),]
 rm(legend)
@@ -59,7 +59,7 @@ areas_poly = st_area(legend_class)
 boxplot(areas_poly,col = "bisque")
 
 quantile(areas_poly,probs=c(0.25,0.5,0.65,0.75,1))
-lim_max = quantile(areas_poly,probs=c(0.75))
+lim_max = quantile(areas_poly,probs=c(0.80))
 lim_min = 10000   # Minimun mapping unit
 units(lim_min) <- as_units("m^2")
 
@@ -83,8 +83,8 @@ legend_class_buffer_q1 = st_buffer(legend_class_q1,-20)
 
 
 ```{r, message=FALSE, warning=FALSE}
-#images_folder = 'C:\\IPSTERS\\IMAGES'
-images_folder = '/home/willimarti2008/Documents/DGT/images'
+images_folder = 'C:\\IPSTERS\\IMAGES'
+#images_folder = '/home/willimarti2008/Documents/DGT/images'
 join_path = function(x,path_folder){
   a = strsplit(x,'[.]')
   format_file = a[[1]][length(a[[1]])]
@@ -112,8 +112,8 @@ paths_images = unlist(lapply(list_images,join_path,images_folder))
 We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
 
 ```{r }
-shape = legend_class_q1[20,]  #16596
-shape_buffer = legend_class_buffer_q1[20,]
+shape = legend_class_q1[45,]  #16596
+shape_buffer = legend_class_buffer_q1[45,]
 
 plot(st_geometry(shape),border='red')
 plot(st_geometry(shape_buffer), col = 'blue', add=T)
@@ -247,10 +247,13 @@ This example covers only water. I want only call 20 polygons for this example
 
 n_samples = 150
 set.seed(123)   #setting same random selection for testing
-index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
-file_index = '/home/willimarti2008/Documents/DGT/sraster/vignettes/index_baresoil.csv'
+#index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
+
+file_index = 'C:\\IPSTERS\\sraster\\ins4\\sampling_4\\output_conifers_Majority rule.csv'
 index_df = read.csv(file_index)
-index = index_df[,2]
+
+index = unique(index_df$Object)
+
 #write.csv(data.frame(unique(result_df_rule$Object),class_analysis),file_index)
 ```
 
@@ -286,7 +289,6 @@ workflow <- function(shape, paths_images,type){
 
 ```{r }
 #query 2  eval= FALSE 
-# 
 legend_class_buffer_q2 = legend_class_buffer_q1[legend_class_buffer_q1$OBJECTI %in% index,]
 
 list_shapes = split(legend_class_buffer_q2,legend_class_buffer_q2$OBJECTI)

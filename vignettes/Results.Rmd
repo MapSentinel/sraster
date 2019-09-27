@@ -1,24 +1,84 @@
 ---
-title: "Results"
-author: "William Martinez"
-date: "16/08/2019"
-output: html_document
+title: 'Use of global land and HRL in the classification workflow'
+author: "DGT Portugal, William Martinez"
+date: "05/08/2019"
+output:
+  html_document:
+    code_folding: hide
+    number_section: yes
+    theme: journal
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '4'
+fig_caption: yes
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Result trayectories
+
+## Accuracies per class
+
 
 ```{r }
 library(ggplot2)
+file_comparision_models = 'C:\\IPSTERS\\sraster\\Results\\Accuraccies_perclass.csv'
+
+#reading file
+comparision_models  = read.csv(file_comparision_models, sep = ";",header = T, dec = ',')
+
+comparision_models$Class = factor(comparision_models$Class,levels = c("urban","baresoil", "rainfed", "irrigated", "rice field", "A_grassland", "broadleaf", "conifers", "N_grassland", "shrubland", "S_vegetation", "wetland", "water"))
+
+comparision_models$External= factor(comparision_models$External , levels = c('Baseline','COS','COS_HRL','COS_GL30_HRL'))
+
+comparision_models$Samples <- as.factor(comparision_models$Samples)
+
+comparision_models$Polygons <- as.factor(comparision_models$Polygons)
+
+comparision_models1 = comparision_models[comparision_models$External %in% c('Baseline','COS'),]
+
+#ggplot
+p1 <- ggplot(data = comparision_models1 , aes(x=Class, y=F1, fill = External )) + geom_boxplot() + 
+  theme(axis.text.x = element_text(size=15, 
+                                    face="bold.italic",angle = 90),
+        axis.text.y = element_text(angle = 0,size=12,
+                                      face="bold.italic"),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.title.x = element_text(size=14, face="bold")) +
+        expand_limits(y = c(0, 1)) + scale_fill_manual(values=c("#C4961A", "#FC4E07"))
+print(p1)
+```
+
+
+
+The following graphic shows the 
+
+```{r }
+comparision_models2 = comparision_models[comparision_models$External %in% c('COS','COS_HRL','COS_GL30_HRL'),]
+
+#ggplot
+p1 <- ggplot(data = comparision_models2 , aes(x=Class, y=F1, fill = External )) + geom_boxplot() + 
+  theme(axis.text.x = element_text(size=15, 
+                                    face="bold.italic",angle = 90),
+        axis.text.y = element_text(angle = 0,size=12,
+                                      face="bold.italic"),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.title.x = element_text(size=14, face="bold")) +
+        expand_limits(y = c(0, 1)) +scale_fill_manual(values=c("#FC4E07","#0072B2","#009E73"))
+print(p1)
+```
+
+
+
+```{r eval= FALSE}
+library(ggplot2)
 library(reshape2)
 
-#output_irrigated_majrule_bdist
-#output_rainfed_majrule_bdist
-path_file = 'C:\\IPSTERS\\sraster\\ins4\\sampling_1\\output_baresoil_Majorityrule_bdist.csv'
-#path_file =  'C:\\IPSTERS\\sraster\\ins4\\sampling_2\\output_baresoil_Majorityrule.csv'
+path_file = 'C:\\IPSTERS\\sraster\\ins4\\sampling_4\\output_broadleaf2_Majorityrule_bdist.csv'
 data_class = read.csv(path_file, sep= ',', header = T, dec = '.' )
 
 col_ndvi = grep("NDVI",colnames(data_class))
@@ -34,72 +94,4 @@ resultmelt$Object <- as.factor(resultmelt$Object)
 p1 <- ggplot(resultmelt, aes(variable, value, group = Object)) + 
   geom_line(color="red") + theme(legend.position="top")
 print(p1)
-```
-
-```{r }
-
-p1 <- ggplot(resultmelt , aes(x=variable, y=value, group = variable )) + geom_boxplot() +
-  geom_boxplot() + theme(legend.position="top")
-
-print(p1)
-```
-
-```{r }
-library(ggplot2)
-file_comparision_models = 'C:\\IPSTERS\\sraster\\Results\\Accuraccies_perclass.csv'
-
-#reading file
-comparision_models  = read.csv(file_comparision_models, sep = ";",header = T, dec = ',')
-
-comparision_models$Class = factor(comparision_models$Class,levels = c("urban","baresoil", "rainfed", "irrigated", "rice field", "A_grassland", "broadleaf", "conifers", "N_grassland", "shrubland", "S_vegetation", "wetland", "water"))
-
-comparision_models$Samples <- as.factor(comparision_models$Samples)
-
-
-comparision_models1 = comparision_models[comparision_models$COMP == 'SI',]
-
-
-#ggplot
-p1 <- ggplot(data = comparision_models1 , aes(x=Class, y=F1, fill = Base )) + geom_boxplot() + 
-  theme(strip.text.x = element_text(size=14, 
-                                    face="bold.italic"),
-        strip.text.y = element_text(angle = 0,size=12,
-                                      face="bold.italic"),
-        axis.title.y = element_text(size=12, face="bold"),
-        axis.title.x = element_text(size=12, face="bold"))+
-  theme(axis.text=element_text(size=12),
-        axis.title=element_text(size=14,face="bold"))
-print(p1)
-```
-
-
-
-
-```{r }
-
-comparision_models2 = comparision_models[comparision_models$Samples == '7000' & comparision_models$Base == 'Base 3'
-                                         & comparision_models$Treatment == 'SI',]
-
-df_f1 = aggregate(F1 ~ Class + Base, data = comparision_models2, mean)
-df_pr = aggregate(Producer ~ Class + Base, data = comparision_models2, mean)
-df_us = aggregate(User ~ Class + Base, data = comparision_models2, mean)
-
-
-```
-
-
-
-
-```{r }
-library(ggplot2)
-file_comparision_models_g = 'C:\\IPSTERS\\sraster\\Results\\Accuraccies_general.csv'
-
-#reading file
-comparision_models_g  = read.csv(file_comparision_models_g, sep = ";",header = T, dec = ',')
-
-comparision_models_g1= comparision_models_g[comparision_models_g$Samples=='7000' & comparision_models_g$Base == 'Base 3' & comparision_models_g$VI == 'SI',]
-
-df_oa = aggregate(AccuracyLower ~ Base,data= comparision_models_g1, mean)
-
-
 ```
