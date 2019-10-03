@@ -43,11 +43,11 @@ library(raster)
 file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
 #file_shape = '/home/willimarti2008/Documents/DGT/COS2015/COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
-table(legend$Legend)
+table(legend$Legend2)
 
-class_analysis = 'conifers'
+class_analysis = 'olive_trees'
 
-legend_class = legend[which(legend$Legend == class_analysis),]
+legend_class = legend[which(legend$Legend2 == class_analysis),]
 rm(legend)
 ```
 ## Size of the polygons
@@ -59,7 +59,7 @@ areas_poly = st_area(legend_class)
 boxplot(areas_poly,col = "bisque")
 
 quantile(areas_poly,probs=c(0.25,0.5,0.65,0.75,1))
-lim_max = quantile(areas_poly,probs=c(0.80))
+lim_max = quantile(areas_poly,probs=c(0.8))
 lim_min = 10000   # Minimun mapping unit
 units(lim_min) <- as_units("m^2")
 
@@ -112,8 +112,8 @@ paths_images = unlist(lapply(list_images,join_path,images_folder))
 We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
 
 ```{r }
-shape = legend_class_q1[45,]  #16596
-shape_buffer = legend_class_buffer_q1[45,]
+shape = legend_class_q1[1,]  #16596
+shape_buffer = legend_class_buffer_q1[1,]
 
 plot(st_geometry(shape),border='red')
 plot(st_geometry(shape_buffer), col = 'blue', add=T)
@@ -245,14 +245,14 @@ This example covers only water. I want only call 20 polygons for this example
 #=========================
 #Goal : stratified random selection of traing samples at level of polygon, (queriying only one class)
 
-n_samples = 150
+n_samples = 115
 set.seed(123)   #setting same random selection for testing
-#index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
+index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
 
-file_index = 'C:\\IPSTERS\\sraster\\ins4\\sampling_4\\output_conifers_Majority rule.csv'
-index_df = read.csv(file_index)
+#file_index = 'C:\\IPSTERS\\sraster\\ins4\\sampling_4\\output_conifers_Majority rule.csv'
+#index_df = read.csv(file_index)
 
-index = unique(index_df$Object)
+#index = unique(index_df$Object)
 
 #write.csv(data.frame(unique(result_df_rule$Object),class_analysis),file_index)
 ```
@@ -289,7 +289,8 @@ workflow <- function(shape, paths_images,type){
 
 ```{r }
 #query 2  eval= FALSE 
-legend_class_buffer_q2 = legend_class_buffer_q1[legend_class_buffer_q1$OBJECTI %in% index,]
+#legend_class_buffer_q1$OBJECTI %in% 
+legend_class_buffer_q2 = legend_class_buffer_q1[index,]
 
 list_shapes = split(legend_class_buffer_q2,legend_class_buffer_q2$OBJECTI)
 
