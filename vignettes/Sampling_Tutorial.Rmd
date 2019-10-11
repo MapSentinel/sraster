@@ -45,7 +45,7 @@ file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
 table(legend$Legend2)
 
-class_analysis = 'olive_trees'
+class_analysis = 'water'
 
 legend_class = legend[which(legend$Legend2 == class_analysis),]
 rm(legend)
@@ -59,7 +59,7 @@ areas_poly = st_area(legend_class)
 boxplot(areas_poly,col = "bisque")
 
 quantile(areas_poly,probs=c(0.25,0.5,0.65,0.75,1))
-lim_max = quantile(areas_poly,probs=c(0.8))
+lim_max = quantile(areas_poly,probs=c(0.99))
 lim_min = 10000   # Minimun mapping unit
 units(lim_min) <- as_units("m^2")
 
@@ -68,7 +68,6 @@ areas_poly_limit = areas_poly[areas_poly >= lim_min & areas_poly < lim_max]
 boxplot(areas_poly_limit,col = "bisque")
 
 cat("Number of polygons: ", length(areas_poly_limit))
-
 ```
 
 ## Query based on area
@@ -112,8 +111,8 @@ paths_images = unlist(lapply(list_images,join_path,images_folder))
 We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
 
 ```{r }
-shape = legend_class_q1[1,]  #16596
-shape_buffer = legend_class_buffer_q1[1,]
+shape = legend_class_q1[legend_class_q1$OBJECTI == 92081 ,]  #16596 670 51158
+shape_buffer = legend_class_buffer_q1[legend_class_buffer_q1$OBJECTI == 92081,]
 
 plot(st_geometry(shape),border='red')
 plot(st_geometry(shape_buffer), col = 'blue', add=T)
@@ -191,10 +190,29 @@ result_NDMIR
 #st_write(as.data.frame(result_NDMIR),"output_NDMIR.csv",layer_options = "GEOMETRY=AS_XY")
 ```
 
+## Adding FILTER ndvi conv 5
+
+```{r }
+list_images_con5 = c("S2A_L2A_20171002-113001_T29SND_CON3.tif",
+                 "S2A_L2A_20171221-112810_T29SND_CON3.tif",
+                 "S2A_L2A_20180321-112321_T29SND_CON3.tif",
+                 "S2A_L2A_20180619-112602_T29SND_CON3.tif",
+                 "S2A_L2A_20180729-112845_T29SND_CON3.tif",
+                 "S2A_L2A_20180818-112627_T29SND_CON3.tif",
+                 "S2A_L2A_20180927-112959_T29SND_CON3.tif")
+
+paths_images_con5 = unlist(lapply(list_images_con5,join_path,images_folder))
+
+result_con5 = as_sraster(shape_buffer, paths_images_con5, names_bands = c("CON5"))
+plot(funct_plot((result_con5$data[["2017-10-02"]][,,1])))
+#st_write(as.data.frame(result_ndvi),"output_ndvi.csv",layer_options = "GEOMETRY=AS_XY")
+```
+
+
 ## stacking layers
 
 ```{r }
-result_stack = stack(list(result, result_ndvi,result_NDBI, result_NDMIR))
+result_stack = stack(list(result,result_ndvi,result_NDBI, result_NDMIR,result_con5))
 result_stack$bands
 #st_write(as.data.frame(result_stack),"output_stack.csv",layer_options = "GEOMETRY=AS_XY")
 ```
@@ -217,12 +235,58 @@ levels(mask_raster) <- rat
 levelplot(mask_raster,col.regions=c("red","blue","yellow","green","black","orange"))
 ```
 
+## K means PCA
+
+```{r }
+
+#array_sr = as.array(result_stack)
+#data_2d = apply(array_sr,3,convert_2d)
+#index_nonan = apply(data_2d,1,func_nan)
+#data_2d_nonan = data_2d[!index_nonan,]
+# #I need to improve the following
+#data_2d_nonan[is.na(data_2d_nonan)] <- 999999
+
+##normalizing data
+#data_2d_nonan_norm = func_scale(data_2d_nonan)
+##matrix var cov
+#R = cov(data_2d_nonan_norm)
+#eigen_res = eigen(R)
+
+#P = t(eigen_res$vectors %*% t(data_2d_nonan_norm))
+
+#P = P[,1:5]
+##defining number of clusters
+#a = c(1:5)
+#for(l in 2:6){
+#  km <- kmeans(P,l)
+#  a[l-1] = round(fpc::calinhara(P,clustering = km$cluster, cn = l),digits=2)
+#  }
+#centers = order(a,decreasing = TRUE)[1] + 1
+#cluster_data_2d = kmeans(P,centers, iter.max = 10)
+
+#vector_cluster = c(array(NA, dim = dim(array_sr)[1:2]))
+
+#vector_cluster[!index_nonan]<-cluster_data_2d$cluster
+
+#cluster_matrix = array(vector_cluster, dim = dim(array_sr)[1:2])
+
+##plot
+
+#mask_raster = funct_plot(cluster_matrix)#
+#mask_raster = as.factor(mask_raster)
+#rat <- levels(mask_raster)[[1]]
+#name_clusters = names(table(cluster_matrix))
+#rat[["cluster"]] <- name_clusters
+#levels(mask_raster) <- rat
+
+#levelplot(mask_raster,col.regions=c("red","blue","yellow","green","black","orange"))
+```
 ### Extracting spectral temporal information with Majority rule
 
 ```{r }
-result_clip = clip_sraster(result_stack, mask = cluster_matrix, type ="Majority rule")
+result_clip = clip_sraster(result_stack, mask = cluster_matrix, type ="rule_ndvi_water")
 plot(funct_plot((result_clip$data[["2017-10-02"]][,,11])))
-#st_write(as.data.frame(result_clip),"output_clip_3.csv",layer_options = "GEOMETRY=AS_XY")
+#st_write(as.data.frame(result_clip),"output_clip_P2_ndvi.csv",layer_options = "GEOMETRY=AS_XY")
 ```
 
 ## Extracting spectral temporal information with ndvi rule for water class
@@ -245,14 +309,14 @@ This example covers only water. I want only call 20 polygons for this example
 #=========================
 #Goal : stratified random selection of traing samples at level of polygon, (queriying only one class)
 
-n_samples = 115
-set.seed(123)   #setting same random selection for testing
-index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
+#n_samples = 150
+#set.seed(123)   #setting same random selection for testing
+#index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
 
-#file_index = 'C:\\IPSTERS\\sraster\\ins4\\sampling_4\\output_conifers_Majority rule.csv'
-#index_df = read.csv(file_index)
+file_index = 'C:\\IPSTERS\\sraster\\ins4\\sampling_0\\output_water_norule.csv'
+index_df = read.csv(file_index)
 
-#index = unique(index_df$Object)
+index = unique(index_df$Object)
 
 #write.csv(data.frame(unique(result_df_rule$Object),class_analysis),file_index)
 ```
@@ -290,11 +354,11 @@ workflow <- function(shape, paths_images,type){
 ```{r }
 #query 2  eval= FALSE 
 #legend_class_buffer_q1$OBJECTI %in% 
-legend_class_buffer_q2 = legend_class_buffer_q1[index,]
+legend_class_buffer_q2 = legend_class_buffer_q1[legend_class_buffer_q1$OBJECTI %in% index,]
 
 list_shapes = split(legend_class_buffer_q2,legend_class_buffer_q2$OBJECTI)
 
-type_rule ="Majority rule"
+type_rule ="rule_ndvi_water"
 
 result_list_rule = lapply(list_shapes, workflow, paths_images, type_rule)
 

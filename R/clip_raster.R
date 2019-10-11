@@ -178,7 +178,7 @@ clip_sraster = function(x, mask, type, threshold = 0.5 ){
     mask[mask == query_cluster] <- 1
   }
   else if(type == 'rule_ndvi_wood'){
-    #here the idea is to select the cluster with the largest NDVI
+    #here the idea is to select the cluster with the
     col_ndvi = grep("NDVI",x$bands)
     ndvi_layers = lapply(x$data,function(w,col_ndvi) w[,,col_ndvi],col_ndvi)
     clusters_name = names(table(mask))
@@ -277,13 +277,15 @@ kmeans_sraster <-
   function(x,...)
   {
     array_sr = as.array(x)
-
+    #transforming in time series the array
     data_2d = apply(array_sr,3,convert_2d)
-
+    #indetifying the cells with nan values always
     index_nonan = apply(data_2d,1,func_nan)
     data_2d_nonan = data_2d[!index_nonan,]
     #I need to improve the following
     data_2d_nonan[is.na(data_2d_nonan)] <- 999999
+
+    data_2d_nonan = func_scale(data_2d_nonan)
 
     #defining number of clusters
     a = c(1:5)
@@ -382,6 +384,18 @@ stack <- function(x){
 }
 
 
-
+#===================================================
+#function to scale dataset based in standar deviation
+#===================================================
+func_scale<- function(x){
+  sd_x = apply(x,2,sd,na.rm=TRUE)
+  index_cero = which(sd_x == 0)
+  if(length(index_cero)==0){
+    scale_x = scale(x)
+  }else{
+    scale_x = scale(x[,-index_cero])
+  }
+  return(scale_x)
+}
 
 
