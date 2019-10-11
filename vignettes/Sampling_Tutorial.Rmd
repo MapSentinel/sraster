@@ -45,7 +45,7 @@ file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
 table(legend$Legend2)
 
-class_analysis = 'water'
+class_analysis = 'baresoil'
 
 legend_class = legend[which(legend$Legend2 == class_analysis),]
 rm(legend)
@@ -111,8 +111,8 @@ paths_images = unlist(lapply(list_images,join_path,images_folder))
 We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
 
 ```{r }
-shape = legend_class_q1[legend_class_q1$OBJECTI == 92081 ,]  #16596 670 51158
-shape_buffer = legend_class_buffer_q1[legend_class_buffer_q1$OBJECTI == 92081,]
+shape = legend_class_q1[legend_class_q1$OBJECTI == 8727 ,]  #8557
+shape_buffer = legend_class_buffer_q1[legend_class_buffer_q1$OBJECTI == 8727,]
 
 plot(st_geometry(shape),border='red')
 plot(st_geometry(shape_buffer), col = 'blue', add=T)
@@ -223,7 +223,7 @@ result_stack$bands
 Internally the number of cluster is defined by the Calinski-Harabasz index. As result, we have 3 clusters
 
 ```{r }
-cluster_matrix = kmeans_sraster(result_stack)
+cluster_matrix = kmeans_sraster(result_stack, pca = TRUE)
 
 mask_raster = funct_plot(cluster_matrix)
 mask_raster = as.factor(mask_raster)
@@ -235,58 +235,12 @@ levels(mask_raster) <- rat
 levelplot(mask_raster,col.regions=c("red","blue","yellow","green","black","orange"))
 ```
 
-## K means PCA
-
-```{r }
-
-#array_sr = as.array(result_stack)
-#data_2d = apply(array_sr,3,convert_2d)
-#index_nonan = apply(data_2d,1,func_nan)
-#data_2d_nonan = data_2d[!index_nonan,]
-# #I need to improve the following
-#data_2d_nonan[is.na(data_2d_nonan)] <- 999999
-
-##normalizing data
-#data_2d_nonan_norm = func_scale(data_2d_nonan)
-##matrix var cov
-#R = cov(data_2d_nonan_norm)
-#eigen_res = eigen(R)
-
-#P = t(eigen_res$vectors %*% t(data_2d_nonan_norm))
-
-#P = P[,1:5]
-##defining number of clusters
-#a = c(1:5)
-#for(l in 2:6){
-#  km <- kmeans(P,l)
-#  a[l-1] = round(fpc::calinhara(P,clustering = km$cluster, cn = l),digits=2)
-#  }
-#centers = order(a,decreasing = TRUE)[1] + 1
-#cluster_data_2d = kmeans(P,centers, iter.max = 10)
-
-#vector_cluster = c(array(NA, dim = dim(array_sr)[1:2]))
-
-#vector_cluster[!index_nonan]<-cluster_data_2d$cluster
-
-#cluster_matrix = array(vector_cluster, dim = dim(array_sr)[1:2])
-
-##plot
-
-#mask_raster = funct_plot(cluster_matrix)#
-#mask_raster = as.factor(mask_raster)
-#rat <- levels(mask_raster)[[1]]
-#name_clusters = names(table(cluster_matrix))
-#rat[["cluster"]] <- name_clusters
-#levels(mask_raster) <- rat
-
-#levelplot(mask_raster,col.regions=c("red","blue","yellow","green","black","orange"))
-```
 ### Extracting spectral temporal information with Majority rule
 
 ```{r }
-result_clip = clip_sraster(result_stack, mask = cluster_matrix, type ="rule_ndvi_water")
-plot(funct_plot((result_clip$data[["2017-10-02"]][,,11])))
-#st_write(as.data.frame(result_clip),"output_clip_P2_ndvi.csv",layer_options = "GEOMETRY=AS_XY")
+result_clip = clip_sraster(result_stack, mask = cluster_matrix, type ="Majority rule")
+plot(funct_plot((result_clip$data[["2018-03-21"]][,,11])))
+#st_write(as.data.frame(result_clip),"output_clip_P4_ndvi.csv",layer_options = "GEOMETRY=AS_XY")
 ```
 
 ## Extracting spectral temporal information with ndvi rule for water class
@@ -313,7 +267,7 @@ This example covers only water. I want only call 20 polygons for this example
 #set.seed(123)   #setting same random selection for testing
 #index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
 
-file_index = 'C:\\IPSTERS\\sraster\\ins4\\sampling_0\\output_water_norule.csv'
+file_index = 'C:\\IPSTERS\\sraster\\ins4\\sampling_0\\output_baresoil_norule.csv'
 index_df = read.csv(file_index)
 
 index = unique(index_df$Object)
@@ -334,7 +288,7 @@ workflow <- function(shape, paths_images,type){
     result_NDMIR = as_sraster(shape, paths_images_NDMIR, names_bands = c("NDMIR"))
     result_stack = stack(list(result, result_ndvi,result_NDBI, result_NDMIR))
     if(length(which(!is.na(result_stack$data[[1]][,,1]))) >=  25){
-        cluster_matrix = kmeans_sraster(result_stack)
+        cluster_matrix = kmeans_sraster(result_stack, pca=TRUE)
         result_clip = clip_sraster(result_stack, mask = cluster_matrix, type)
         if(is.null(result_clip)){
               return(NULL)
@@ -358,7 +312,7 @@ legend_class_buffer_q2 = legend_class_buffer_q1[legend_class_buffer_q1$OBJECTI %
 
 list_shapes = split(legend_class_buffer_q2,legend_class_buffer_q2$OBJECTI)
 
-type_rule ="rule_ndvi_water"
+type_rule ="Majority rule"
 
 result_list_rule = lapply(list_shapes, workflow, paths_images, type_rule)
 
@@ -440,10 +394,10 @@ st_write(result_df_rule2, paste0("output_",class_analysis,"_",type_rule,"_bdist.
 
 ```{r }
 #eval= FALSE
-result_list_nr = lapply(list_shapes, workflow, paths_images, type ="No rule")
-result_df_nr = do.call("rbind",result_list_nr)
-st_crs(result_df_nr)<-st_crs(legend_class)
-st_write(result_df_nr, paste0("output_",class_analysis,"_norule.csv"), layer_options = "GEOMETRY=AS_XY")
+#result_list_nr = lapply(list_shapes, workflow, paths_images, type ="No rule")
+#result_df_nr = do.call("rbind",result_list_nr)
+#st_crs(result_df_nr)<-st_crs(legend_class)
+#st_write(result_df_nr, paste0("output_",class_analysis,"_norule.csv"), layer_options = "GEOMETRY=AS_XY")
 ```
 
 

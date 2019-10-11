@@ -148,7 +148,6 @@ print.sraster <-
     cat("Coord Origin x: ", x$coordinates[1,1]," and y: ", x$coordinates[1,2]  ,"\n")
   }
 
-
 #===============================
 #Clip sraster
 #===============================
@@ -177,21 +176,31 @@ clip_sraster = function(x, mask, type, threshold = 0.5 ){
     mask[mask != query_cluster] <- NA
     mask[mask == query_cluster] <- 1
   }
-  else if(type == 'rule_ndvi_wood'){
-    #here the idea is to select the cluster with the
+  else if(type == 'rule_ndvi_baresoil'){
     col_ndvi = grep("NDVI",x$bands)
     ndvi_layers = lapply(x$data,function(w,col_ndvi) w[,,col_ndvi],col_ndvi)
     clusters_name = names(table(mask))
-    medians_clusters = NULL
+    q10_clusters = NULL
+    q90_clusters = NULL
     for(i in clusters_name){
       index = which(mask == i)
       list_values_index = lapply(ndvi_layers, function(w, index) as.numeric(w)[index], index)
-      median_vector_index = median(unlist(list_values_index),na.rm=TRUE)
-      medians_clusters = c(medians_clusters, median_vector_index)
+      q10_vector_index = quantile(unlist(list_values_index),na.rm=TRUE,probs =c(0.10))
+      q90_vector_index = quantile(unlist(list_values_index),na.rm=TRUE,probs =c(0.90))
+      q10_clusters = c(q10_clusters, q10_vector_index)
+      q90_clusters = c(q90_clusters, q90_vector_index)
     }
-    query_cluster = order(medians_clusters,decreasing = TRUE)[1]
-    mask[mask != query_cluster] <- NA
-    mask[mask == query_cluster] <- 1
+    #let's take the cluster that fullfills both rules
+    query_cluster = intersect(which(q10_clusters > 0),which(q90_clusters < 4000))
+    if(length(query_cluster)==0)
+    {
+      #none of the cluster fullfills the rule
+      return(NULL)
+    }else
+    {
+      mask[!(mask %in% query_cluster)] <- NA
+      mask[mask %in% query_cluster] <- 1
+    }
   }
   else{
     stop("provide one of the methods")
@@ -274,7 +283,7 @@ func_nan <- function(x){all(is.na(x))}
 library(fpc)
 
 kmeans_sraster <-
-  function(x,...)
+  function(x,pca,...)
   {
     array_sr = as.array(x)
     #transforming in time series the array
@@ -284,9 +293,30 @@ kmeans_sraster <-
     data_2d_nonan = data_2d[!index_nonan,]
     #I need to improve the following
     data_2d_nonan[is.na(data_2d_nonan)] <- 999999
-
+    #Normalization
     data_2d_nonan = func_scale(data_2d_nonan)
-
+    #performing pca
+    if(pca == TRUE){
+      #matrix var cov
+      R = cov(data_2d_nonan)
+      eigen_res = eigen(R)
+      P = t(eigen_res$vectors %*% t(data_2d_nonan))
+      #selecting number of vectors, here apt to 85%
+      eigen_values = eigen_res$values
+      ev = 0
+      for(k in 1:length(eigen_values))
+      {
+          ev = ev + eigen_values[k]
+          if(ev >= 95){
+            break
+          }else
+          {
+            next
+          }
+      }
+      number_components = k
+      data_2d_nonan = P[,1:number_components]
+    }
     #defining number of clusters
     a = c(1:5)
     for(l in 2:6){
