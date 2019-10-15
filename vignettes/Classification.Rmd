@@ -32,9 +32,9 @@ stat_metrics = NULL
 overall_accuracy = NULL
 
 
-for(iter in 1:15){
+for(iter in 1:3){
   
-file_directory = 'C:\\IPSTERS\\sraster\\ins4\\sampling_3'
+file_directory = 'C:\\IPSTERS\\sraster\\ins4\\sampling_0'
 list_files = lapply(list.files(file_directory),function(x){paste0(file_directory,"\\",x)})
 
 group_by = 'Object'
@@ -66,7 +66,6 @@ sampling_strata <- function(file_x, nsamples, group_by ){
 }
 
 data_random_split = lapply(list_files, sampling_strata, nsamples, group_by)
-
 
 #===============================
 #classification random forest
@@ -106,42 +105,8 @@ remove_na_df = function(x){
 
 data_random2 = remove_na_df(data_random)
 
-#============================
-#adding more feaatures
-#============================
-names_bands = colnames(data_random2)
-ind_NDVI = grep("NDVI",names_bands)
-ind_NDBI = grep("NDBI",names_bands)
-ind_NDMIR = grep("NDMIR",names_bands)
-indeces = list(data_random2[,ind_NDVI],data_random2[,ind_NDBI],data_random2[,ind_NDMIR])
-indeces_names = c("NDVI","NDBI","NDMIR")
-
-statistic_mean = function(y, name_y) mean(y, na.rm=TRUE)
-statistic_min = function(y) min(y, na.rm=TRUE)
-statistic_max = function(y) max(y, na.rm=TRUE)
-statistic_var = function(y) var(y, na.rm=TRUE)
-statistic_q10 = function(y) quantile(y, probs = c(0.1), na.rm=TRUE)
-statistic_q25 = function(y) quantile(y, probs = c(0.25), na.rm=TRUE)
-statistic_q50 = function(y) quantile(y, probs = c(0.50), na.rm=TRUE)
-statistic_q75 = function(y) quantile(y, probs = c(0.75), na.rm=TRUE)
-statistic_q90 = function(y) quantile(y, probs = c(0.90), na.rm=TRUE)
-
-statistic = list(statistic_mean, statistic_min, statistic_max, statistic_var, statistic_q10, statistic_q25, statistic_q50, statistic_q75, statistic_q90)
-statistic_names = c("mean","min","max","var","q10","q25","q50","q75","q90")
-output = NULL
-for(j in 1:length(statistic)){
-  statistic_w = lapply(indeces, function(x) apply(x,1,statistic[[j]]))
-  df_stat = do.call("cbind",statistic_w)
-  colnames(df_stat)<- paste0(indeces_names, statistic_names[j])
-  output = cbind(output,df_stat)
-}
-output_df = as.data.frame(output)
-#============================
-
-data_random3 = cbind(data_random2, output_df)
-
-train = data_random3[data_random3$type == "Training",-c(1,2,3,96)]
-test = data_random3[data_random3$type == "Test",-c(1,2,3,96)]
+train = data_random2[data_random3$type == "Training",-c(1,2,3,96)]
+test = data_random2[data_random3$type == "Test",-c(1,2,3,96)]
 
 #===============================
 #Modelling

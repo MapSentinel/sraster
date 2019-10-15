@@ -45,7 +45,7 @@ file_shape = 'C:\\IPSTERS\\COS2015\\COS2015_v2_08_02_2019_clip.shp'
 legend = st_read(file_shape)
 table(legend$Legend2)
 
-class_analysis = 'baresoil'
+class_analysis = 'azinheira'
 
 legend_class = legend[which(legend$Legend2 == class_analysis),]
 rm(legend)
@@ -111,8 +111,8 @@ paths_images = unlist(lapply(list_images,join_path,images_folder))
 We consider two shapes, one polygon corresponds to the original one extracted from COS 2015 and the another one after boundary extraction of 20m around original polygon.
 
 ```{r }
-shape = legend_class_q1[legend_class_q1$OBJECTI == 8727 ,]  #8557
-shape_buffer = legend_class_buffer_q1[legend_class_buffer_q1$OBJECTI == 8727,]
+shape = legend_class_q1[legend_class_q1$OBJECTI == 50419,]  #8557
+shape_buffer = legend_class_buffer_q1[legend_class_buffer_q1$OBJECTI == 50419,]
 
 plot(st_geometry(shape),border='red')
 plot(st_geometry(shape_buffer), col = 'blue', add=T)
@@ -267,7 +267,7 @@ This example covers only water. I want only call 20 polygons for this example
 #set.seed(123)   #setting same random selection for testing
 #index = sample(1:dim(legend_class_buffer_q1)[1], n_samples,replace = FALSE)
 
-file_index = 'C:\\IPSTERS\\sraster\\ins4\\sampling_0\\output_baresoil_norule.csv'
+file_index = 'C:\\IPSTERS\\sraster\\ins4\\sampling_0\\output_urban_norule.csv'
 index_df = read.csv(file_index)
 
 index = unique(index_df$Object)
@@ -286,7 +286,8 @@ workflow <- function(shape, paths_images,type){
     result_ndvi = as_sraster(shape, paths_images_ndvi, names_bands = c("NDVI"))
     result_NDBI = as_sraster(shape, paths_images_NDBI, names_bands = c("NDBI"))
     result_NDMIR = as_sraster(shape, paths_images_NDMIR, names_bands = c("NDMIR"))
-    result_stack = stack(list(result, result_ndvi,result_NDBI, result_NDMIR))
+    result_con5 = as_sraster(shape, paths_images_con5, names_bands = c("CON5"))
+    result_stack = stack(list(result, result_ndvi,result_NDBI, result_NDMIR, result_con5))
     if(length(which(!is.na(result_stack$data[[1]][,,1]))) >=  25){
         cluster_matrix = kmeans_sraster(result_stack, pca=TRUE)
         result_clip = clip_sraster(result_stack, mask = cluster_matrix, type)
