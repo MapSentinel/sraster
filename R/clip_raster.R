@@ -60,7 +60,7 @@ function_time_name <- function(x){
 #reading raster
 #================================
 
-read_raster <-function(files_raster, xyoffs, reg, r_shape_array, shape,names_bands){
+read_raster <-function(files_raster, xyoffs, reg, r_shape_array, shape,names_bands,name_times){
   # files_raster: vector with raster paths
   list_composites = list()
   n_img = length(files_raster)
@@ -76,7 +76,7 @@ read_raster <-function(files_raster, xyoffs, reg, r_shape_array, shape,names_ban
       clip_extent = rgdal::getRasterData(datasource, offset = xyoffs, region.dim = reg, band=i)
       list_bands[[band]] = clip_extent * r_shape_array
     }
-    time_name_img = as.character(function_time_name(j))
+    time_name_img = name_times[l] #as.character(function_time_name(j))
     list_composites[[time_name_img]] = array(unlist(list_bands),dim = c(reg[2], reg[1] , length(list_bands)))
     time_names_img = c(time_names_img,time_name_img)
     rgdal::closeDataset(datasource)
@@ -96,7 +96,7 @@ read_raster <-function(files_raster, xyoffs, reg, r_shape_array, shape,names_ban
 
 
 #crating sraster function
-as_sraster <- function(shape,files_raster,names_bands){
+as_sraster <- function(shape,files_raster,names_bands,name_times){
 
   #shape
   cat(paste0("\tShape ",shape$OBJECTI),"\n")
@@ -114,7 +114,7 @@ as_sraster <- function(shape,files_raster,names_bands){
   r_shape$field[r_shape$field == 0] = NA
   r_shape_array = r_shape$field
 
-  result <- read_raster(files_raster, xyoffs, reg, r_shape_array,shape, names_bands)
+  result <- read_raster(files_raster, xyoffs, reg, r_shape_array,shape, names_bands,name_times)
 
   #Coordinates
 
@@ -250,7 +250,7 @@ as.data.frame.sraster <-
     #names
     vector_names = NULL
     for(i in x$time){
-      vector_name = lapply(x$bands,function(y,i){paste0(i,"-",y)}, i)
+      vector_name = lapply(x$bands,function(y,i){paste0(i,"_",y)}, i)
       vector_names = c(vector_names, unlist(vector_name))
     }
 
@@ -427,5 +427,105 @@ func_scale<- function(x){
   }
   return(scale_x)
 }
+
+#==========================================================
+#Adding statisctics to the data, based on NDVI, NDBI, NDMIR
+#==========================================================
+
+
+statistic_mean = function(y) mean(y, na.rm=TRUE)
+statistic_min = function(y) min(y, na.rm=TRUE)
+statistic_max = function(y) max(y, na.rm=TRUE)
+statistic_var = function(y) var(y, na.rm=TRUE)
+statistic_q10 = function(y) quantile(y, probs = c(0.1), na.rm=TRUE)
+statistic_q25 = function(y) quantile(y, probs = c(0.25), na.rm=TRUE)
+statistic_q50 = function(y) quantile(y, probs = c(0.50), na.rm=TRUE)
+statistic_q75 = function(y) quantile(y, probs = c(0.75), na.rm=TRUE)
+statistic_q90 = function(y) quantile(y, probs = c(0.90), na.rm=TRUE)
+
+
+add_stat <- function(x){
+  y = x
+  st_geometry(x) = NULL
+  names_x = colnames(x)
+  #defining coums where the info is located.
+  ind_NDVI = grep("NDVI",names_x)
+  ind_NDBI = grep("NDBI",names_x)
+  ind_NDMIR = grep("NDMIR",names_x)
+  #creating a list with three dataframes regarding the vegetation idex
+  indeces = list(x[,ind_NDVI],x[,ind_NDBI],x[,ind_NDMIR])
+  indeces_names = c("NDVI","NDBI","NDMIR")
+
+  statistic = list(statistic_mean, statistic_min, statistic_max, statistic_var, statistic_q10, statistic_q25, statistic_q50, statistic_q75, statistic_q90)
+  statistic_names = c("mean","min","max","var","q10","q25","q50","q75","q90")
+  output = NULL
+  for(j in 1:length(statistic)){
+    statistic_w = lapply(indeces,function(w) apply(w,1,statistic[[j]]))
+    df_stat = do.call("cbind",statistic_w)
+    colnames(df_stat)<- paste0(indeces_names, statistic_names[j])
+    output = cbind(output,df_stat)
+  }
+  output_df = as.data.frame(output)
+  #merging original dataframe with the new one
+  x_output = cbind(x,output_df)
+  st_geometry(x_output) = st_geometry(y)
+  return(x_output)
+}
+
+
+#==========================================================
+#splitting data into traning and testing
+#==========================================================
+
+
+sampling_strata <- function(file_x, nsamples, group_by ){
+  x = read.csv2(file_x, header = TRUE)
+  n_total_samples = nrow(x)
+
+  samples_strata = function(y,n_total_samples,nsamples){
+    if(n_total_samples < nsamples)
+    {
+      nsamples = n_total_samples
+      message("we have less samples that those expected")
+    }
+    n_rows = nrow(y)
+    perc_samples = n_rows/n_total_samples
+    n_samples_class = round(nsamples * perc_samples)
+    random_index = sample(1:n_rows,size = n_samples_class,replace = FALSE)
+    return(y[random_index,])
+  }
+
+  #split
+  x_split = split(x,x[,group_by])
+  x_split_random = lapply(x_split, samples_strata, n_total_samples, nsamples)
+  x_random = do.call("rbind", x_split_random)
+  return(x_random)
+  cat(file_x)
+}
+
+
+function_train_selection <- function(x){
+  polygons_class = unique(x$Object)
+  ind = sample(2, length(polygons_class), replace = TRUE, prob = c(0.7,0.3))
+  train_class = polygons_class[ind==1]
+  test_class = polygons_class[ind==2]
+  train_df = x[x$Object %in% train_class,]
+  train_df$type = "Training"
+  test_df = x[x$Object %in% test_class,]
+  test_df$type = "Test"
+  df_result = rbind(train_df,test_df)
+  return(df_result)
+}
+
+remove_na_df = function(x){
+  x$row <- 1:nrow(x)
+  list_rows = split(x,x$row)
+  list_rows_wn = lapply(list_rows,function(r){if(all(!is.na(r))){return(r)}})
+  result_df = do.call("rbind", list_rows_wn)
+  result_df$row <- NULL
+  return(result_df)
+}
+
+
 
 

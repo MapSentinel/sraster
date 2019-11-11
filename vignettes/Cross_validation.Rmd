@@ -1,0 +1,141 @@
+---
+title: "Tutorial of sraster"
+author: "DGT Portugal, William Martinez"
+date: "05/08/2019"
+fig_caption: TRUE
+output:
+  html_document: 
+    theme: journal
+    toc: true
+    toc_depth: 4
+    number_section: true
+    code_folding: hide
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(kableExtra)
+```
+
+# Introduction
+
+
+I want to select 1000 samples per class. To do so also I will consider to keep the same amount of samples per polygons, or at least the same proportion.
+
+# Importing data
+
+
+```{r}
+```
+
+
+
+```{r}
+stat_metrics = NULL
+overall_accuracy = NULL
+out_confusion_matrix =NULL
+
+for(iter in 1:30){
+  
+file_directory = 'C:\\IPSTERS\\sraster\\ins5\\sampling_6\\majority_rule_classification_pca'
+list_files = lapply(list.files(file_directory),function(x){paste0(file_directory,"\\",x)})
+
+group_by = 'Object'
+nsamples = 7000
+
+
+data_random_split = lapply(list_files, sampling_strata, nsamples, group_by)
+
+#===============================
+#classification random forest
+#===============================
+#Since we have 22 polygons per class, I will select 15 for training an 7 for testing. 
+
+data_random_split2 = lapply(data_random_split, function_train_selection)
+data_random = do.call("rbind",data_random_split2)
+
+#===============================
+#Removing nans
+#===============================
+
+data_random2 = remove_na_df(data_random)
+
+train = data_random2[data_random2$type == "Training",-c(1,2,3,4,189)]
+test = data_random2[data_random2$type == "Test",-c(1,2,3,4,189)]
+
+#===============================
+#Modelling
+#===============================
+#set.seed(222)
+model_rf = randomForest::randomForest(Label~. , data = train,ntree = 500)
+print(model_rf)
+randomForest::importance(model_rf)
+
+#===============================
+#Prediction
+#===============================
+
+library(caret)
+pred_test = predict(model_rf, test)
+result_test = caret::confusionMatrix(pred_test, test$Label)
+
+#===============================
+#CONFUSION MATRIX
+#===============================
+
+table_confusion = as.data.frame(result_test$table)
+table_confusion$iteration = iter
+out_confusion_matrix =  rbind(out_confusion_matrix, table_confusion)
+
+#===============================
+#Accuracies
+#===============================
+
+
+stat_metrics = rbind(stat_metrics, result_test$byClass[,c(1,3,7)])
+overall_accuracy = rbind(overall_accuracy,result_test$overall)
+
+cat("ready",iter)
+}
+
+```
+
+
+```{r}
+#write.csv(out_confusion_matrix,"confusion_matrix_composites.csv")
+
+#gc()
+#rm(list=ls())
+
+#write.csv(stat_metrics,"stat_metrics_150_samples_7000p_composites.csv")
+#write.csv(overall_accuracy ,"overall_accuraccy_150_samples_7000p_composites.csv")
+```
+#Confusion matrix
+
+```{r}
+
+CF = read.csv('C:\\IPSTERS\\sraster\\Results\\confusion_matrix_composites.csv')
+CF$X = NULL
+
+confusion_matrix_final = CF[CF$iteration == 1,]
+confusion_matrix_final$Freq = 0 
+for(i in unique(CF$iteration)){
+  index_c = which(CF$iteration == i)
+  confusion_matrix_final$Freq = confusion_matrix_final$Freq + CF[index_c,c("Freq")]
+}
+confusion_matrix_final$iteration= NULL
+
+#write.csv(confusion_matrix_final,"confusion_matrix_final_composites.csv")
+
+#confusion_matrix_final$Freq = confusion_matrix_final$Freq/20
+
+#write.csv(confusion_matrix_final,"confusion_matrix_final2.csv")
+
+```
+
+
+
+
+

@@ -1,0 +1,243 @@
+---
+title: "Tutorial of sraster"
+author: "DGT Portugal, William Martinez"
+date: "05/08/2019"
+fig_caption: TRUE
+output:
+  html_document: 
+    theme: journal
+    toc: true
+    toc_depth: 4
+    number_section: true
+    code_folding: hide
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+#library(kableExtra)
+```
+
+
+# classification
+
+```{r}
+source('\\\\dgt-699\\IPSTERS\\sraster\\R\\clip_raster.R')
+
+set.seed(123)
+file_directory = 'C:\\IPSTERS\\sraster\\ins5\\sampling_6\\majority_rule_classification_pca'
+list_files = lapply(list.files(file_directory),function(x){paste0(file_directory,"\\",x)})
+
+group_by = 'Object'
+nsamples = 7000
+
+data_random_split = lapply(list_files, sampling_strata, nsamples, group_by)
+
+#===============================
+#classification random forest
+#===============================
+
+data_random_split2 = lapply(data_random_split, function_train_selection)
+
+data_random = do.call("rbind",data_random_split2)
+#write.csv(data_random,"output5.csv")
+
+#===============================
+#Removing nans
+#===============================
+
+data_random2 = remove_na_df(data_random)
+#removing columns with categorical levels
+train = data_random2[,-c(1,2,3,4,189)]
+
+#===============================
+#Modelling
+#===============================
+set.seed(444)
+model_rf = randomForest::randomForest(Label~. , data = train,ntree = 500)
+print(model_rf)
+randomForest::importance(model_rf)
+```
+
+
+# Prediction
+
+```{r, message=FALSE, warning=FALSE}
+
+#===============================
+#Example
+#===============================
+
+library(rgdal)
+library(sf)
+library(rasterVis)
+library(stars)
+library(raster)
+
+file_shape = '\\\\dgt-699\\IPSTERS\\COS2015\\Tiles_prediction.shp'
+tile = st_read(file_shape)
+```
+
+
+# Example Polygon
+
+```{r, message=FALSE, warning=FALSE}
+sub_tile_analysis =  tile[which(tile$Prediction == 'Tile_111'),]
+shape = sub_tile_analysis[1,]
+```
+
+## Images ST
+
+```{r, message=FALSE, warning=FALSE}
+images_folder = '\\\\dsgig-12\\dsgig-12-intenso\\Theia_S2process\\T29SND\\composites'
+name_files = list.files(images_folder, pattern = "\\.tif$")
+paths_images = paste0(images_folder, '//', name_files)
+paths_images = paths_images[1:12]
+```
+
+
+
+## sraster object
+
+For the 92266 polygon we want to extract the spectral and temporal information associated to Snetinel 2 2018. The function as_raster also provides NDVI index. Since we have 9 images with 10 bands of sentinel 2, plus NDVI per image, in total we have 99 layers for our cluster analysis.
+
+```{r }
+names_bands = c('Band_1','Band_2', 'Band_3', 'Band_4', 'Band_5', 'Band_6','Band_7','Band_8', 'Band_9','Band_10')
+name_times = c('ST_Oct_2017','ST_Nov_2017','ST_Dec_2017','ST_Jan_2018','ST_Feb_2018','ST_Mar_2018','ST_Apr_2018','ST_May_2018','ST_Jun_2018','ST_Jul_2018','ST_Aug_2018','ST_Sep_2018')
+result = as_sraster(shape,paths_images,names_bands, name_times)
+
+plot(funct_plot((result$data[["ST_Oct_2017"]][,,1])))
+#st_write(as.data.frame(result),"output_11.csv",layer_options = "GEOMETRY=AS_XY")
+```
+## Adding NDVI and converting to sraster object
+
+```{r }
+images_folder_ndvi = '\\\\dsgig-12\\dsgig-12-intenso\\Theia_S2process\\T29SND\\composites\\indices'
+name_files_ndvi = list.files(images_folder_ndvi, pattern = "\\NDVI.tif$")
+paths_images_ndvi = paste0(images_folder_ndvi, '//', name_files_ndvi)
+#converting the info in sraster object
+result_ndvi = as_sraster(shape,paths_images_ndvi,names_bands = c("NDVI"),name_times)
+plot(funct_plot((result_ndvi$data[["ST_Oct_2017"]][,,1])))
+```
+
+
+## Adding NDBI and converting to sraster object
+
+```{r }
+images_folder_NDBI = '\\\\dsgig-12\\dsgig-12-intenso\\Theia_S2process\\T29SND\\composites\\indices'
+name_files_NDBI = list.files(images_folder_NDBI, pattern = "\\NDBI.tif$")
+paths_images_NDBI = paste0(images_folder_NDBI, '//', name_files_NDBI)
+#converting the info in sraster object
+result_NDBI = as_sraster(shape,paths_images_NDBI,names_bands = c("NDBI"),name_times)
+plot(funct_plot((result_NDBI$data[["ST_Oct_2017"]][,,1])))
+```
+
+
+## Adding NDMIR and converting to sraster object
+
+
+```{r }
+images_folder_NDMIR = '\\\\dsgig-12\\dsgig-12-intenso\\Theia_S2process\\T29SND\\composites\\indices'
+name_files_NDMIR = list.files(images_folder_NDMIR, pattern = "\\NDMIR.tif$")
+paths_images_NDMIR = paste0(images_folder_NDMIR, '//', name_files_NDMIR)
+#converting the info in sraster object
+result_NDMIR = as_sraster(shape,paths_images_NDMIR,names_bands = c("NDMIR"),name_times)
+plot(funct_plot((result_NDMIR$data[["ST_Oct_2017"]][,,1])))
+```
+
+## stacking layers
+
+```{r }
+result_stack = stack(list(result,result_ndvi,result_NDBI, result_NDMIR))
+result_stack$bands
+#st_write(as.data.frame(result_stack),"output_stack.csv",layer_options = "GEOMETRY=AS_XY")
+```
+
+
+## Converting to a dataframe
+
+```{r }
+dfraster = as.data.frame(result_stack)
+dim(dfraster)
+```
+
+
+## Adding stat
+
+```{r }
+dfraster_stat = add_stat(dfraster)
+#st_write(as.data.frame(dfraster_stat),"output_tt12.csv",layer_options = "GEOMETRY=AS_XY")
+```
+
+## Prediction
+
+```{r }
+library(caret)
+st_data = dfraster_stat[,-1]
+st_geometry(st_data) = NULL
+pred_st_data = predict(model_rf, st_data)
+dfraster_stat$Prediction = pred_st_data
+#st_write(as.data.frame(dfraster_stat),"output_prediction.csv",layer_options = "GEOMETRY=AS_XY")
+```
+
+
+```{r }
+library(raster)
+# create spatial points data frame
+spg <- data.frame(sf::st_coordinates(dfraster_stat),value=pred_st_data)
+coordinates(spg) <- ~ X + Y
+# coerce to SpatialPixelsDataFrame
+gridded(spg) <- TRUE
+# coerce to raster
+rasterDF <- raster(spg)
+plot(rasterDF)
+```
+
+# workflow
+
+```{r }
+library(raster)
+for(k in unique(tile$Prediction)){
+    index_stile = which(tile$Prediction == k)
+    sub_tile = tile[index_stile,]
+    list_raster = list()
+    for(i in unique(sub_tile$OBJECTI)){
+          shape = sub_tile[which(sub_tile$OBJECTI == i),]
+          result = as_sraster(shape,paths_images,names_bands, name_times)
+          result_ndvi = as_sraster(shape,paths_images_ndvi,names_bands = c("NDVI"),name_times)
+          result_NDBI = as_sraster(shape,paths_images_NDBI,names_bands = c("NDBI"),name_times)
+          result_NDMIR = as_sraster(shape,paths_images_NDMIR,names_bands = c("NDMIR"),name_times)
+          result_stack = stack(list(result,result_ndvi,result_NDBI, result_NDMIR))
+          dfraster = as.data.frame(result_stack)
+          dfraster_stat = add_stat(dfraster)
+          st_data = dfraster_stat[,-1]
+          st_geometry(st_data) = NULL
+          pred_st_data = predict(model_rf, st_data)
+          #raster
+          spg <- data.frame(sf::st_coordinates(dfraster_stat),value=pred_st_data)
+          coordinates(spg) <- ~ X + Y
+          # coerce to SpatialPixelsDataFrame
+          gridded(spg) <- TRUE
+          # coerce to raster
+          list_raster[[i]] <- raster(spg)
+          cat('Done squere ', i, " of tile ", k)
+          }
+    list_raster$fun <- max
+    list_raster= list_raster[which(!sapply(list_raster, is.null))]
+    raster_f <- do.call(mosaic, list_raster)
+    raster::crs(raster_f) <- raster::crs(raster(paths_images[1]))
+    file_tif = paste0('\\\\dgt-699\\IPSTERS\\COS2015\\Map\\',k,'.tif')
+    raster::writeRaster(raster_f,file_tif)
+    cat('done tile ', k)
+}
+```
+
+# mosaic
+
+```{r }
+#list_raster$fun <- max
+#raster_f <- do.call(mosaic, list_raster)
+#raster::crs(dfraster_stat)
+#raster::writeRaster(raster_f,"testingf.tif")
+```
