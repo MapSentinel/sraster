@@ -1,0 +1,34 @@
+---
+title: "Rasterization"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## RAsterization
+
+```{r cars}
+library(stars)
+library(raster)
+library(sf)
+shape = sf::read_sf('/media/willimarti2008/OS/DGT/Traning_data/7_COS_2015_Buffer_tr_noburnt/COS_2015_Buffer_tr_noburnt.shp')
+unique(shape$COS2015v2)
+type = c('333')
+#type_name = unique(shape[which(c(shape$COS2015v2 %in% type)),'Legenda']$Legenda)
+#cat(type_name)
+type_name = 'Sparse_vegetation'
+shape_query = shape[shape$COS2015v2 %in% type,'OBJECTID']
+#shape_query = shape[,'OBJECTID']
+shape_query = st_zm(shape_query)
+source = raster('/media/willimarti2008/OS/DGT/Traning_data/2_Resampling_tr_HRL/DLT_HRL_2015_buffer_ResTrans.tif')
+gc()
+#rasterization
+r = stars::st_rasterize(shape_query, st_as_stars(st_bbox(source), nx = 20982, ny = 20976),options = "ALL_TOUCHED=TRUE")
+perent_d = '/media/willimarti2008/OS/DGT/Traning_data/9_output/Other_classes'
+gc()
+#stars::write_stars(r, paste0(perent_d,'/','Raster_',type,'_',type_name,'.tif'), type = 'UInt32')
+stars::write_stars(r, paste0(perent_d,'/','Raster_',type_name,'.tif'), type = 'UInt32')
+```
+
