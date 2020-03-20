@@ -22,7 +22,7 @@ library(kableExtra)
 # Introduction
 
 
-I want to select 1000 samples per class. To do so also I will consider to keep the same amount of samples per polygons, or at least the same proportion.
+I want to select 1000 samples per class. To do so, I will also consider to keep the same amount of samples per polygons, or at least the same proportion.
 
 # Importing data
 
