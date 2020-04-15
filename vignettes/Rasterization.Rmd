@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ## RAsterization
 
 ```{r cars}
+library(reshape2)
 library(stars)
 library(raster)
 library(sf)
